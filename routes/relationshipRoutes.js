@@ -5,7 +5,7 @@ const {generateTeacherCode,
     linkStudentByCode,
     getTeacherStudentsHandler,
     getStudentRelationsHandler,
-    unlinkStudent} = require('../Controllers/relationshipController');
+    unlinkStudent} = require('../controllers/relationshipController');
 
 router.post('/teacher-code', generateTeacherCode);
 router.get('/teacher-code/:teacherId', getTeacherCodeHandler);
