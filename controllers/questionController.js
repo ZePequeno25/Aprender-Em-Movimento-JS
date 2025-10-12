@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+const { admin } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const {isProfessor} = require('../models/userModel');
 const {addQuestion, getQuestions, updateQuestion, deleteQuestion} = require('../models/questionModel');

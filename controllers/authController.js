@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+const { admin } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword } = require('../models/userModel');
 

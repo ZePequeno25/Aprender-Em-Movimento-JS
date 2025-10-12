@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+const { admin } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const {addChatMessage, getChatMessages} = require('../models/chatModel');
 const {isProfessor, isStudent, getUserName} = require('../models/userModel');
