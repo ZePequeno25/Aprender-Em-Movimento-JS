@@ -22,16 +22,26 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
       'https://id-preview--b7d67252-99dc-4651-becb-4194ed477859.lovable.app',
       'https://b7d67252-99dc-4651-becb-4194ed477859.lovableproject.com',
       'https://id-preview--77c82926-cc52-4e97-9f3b-585910fae583.lovable.app', 
-      'http://localhost:5173', 
-      'http://localhost:3000'
+      'http://localhost:5050', 
+      'http://localhost:3000',
+      'https://aprender-em-movimento.onrender.com',
+      'https://nifty-pursuit-382200.web.app',
+      'https://nifty-pursuit-382200.firebaseapp.com'
     ];
 app.use(cors({
   origin: (origin, callback) => {
-    logger.info(`Origem da requisição: ${origin || 'sem origem'}`);
+    logger.info(`Origem da requisição: ${origin || 'sem origem'}`, {
+      path: req.originUrl, //diagnostico da requisição
+      method: req.method
+    });
+      
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      logger.error(`Erro: Origin ${origin} not allowed by CORS`);
+      logger.warn(`Origem não permitida: ${origin}`,{
+        path: req.originUrl,
+        method: req.method
+      });
       callback(new Error('Origin not allowed by CORS'));
     }
   },
@@ -44,7 +54,10 @@ app.use(cors({
 app.use(express.json());
 
 // Rotas
-app.get('/api/health', (req, res) => res.status(200).json({ status: 'OK' }));
+app.get('/api/health', (req, res) => {
+  logger.info('Verificação de saúde recebida');
+  res.status(200).json({ status: 'OK' });
+});
 app.use('/api', authRoutes);
 app.use('/api', questionRoutes);
 app.use('/api', relationshipRoutes);
@@ -53,7 +66,11 @@ app.use('/api', chatRoutes);
 
 // Middleware de erro
 app.use((err, req, res, next) => {
-  logger.error(`Erro: ${err.message}`);
+  logger.error(`Erro: ${err.message}`,{
+    path: req.originUrl,
+    method: req.method,
+    origin: req.get('origin') || 'sem origem'
+  });
   res.status(500).json({ error: err.message });
 });
 

@@ -14,18 +14,25 @@ const initializeFirebase = () => {
     if(initialized)return;
     
     try{
+        let serviceAccount;
         const serviceAccountPath = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
         if(!serviceAccountPath){
             throw new Error('FIREBASE_SERVICE_ACCOUNT não está definido nas variáveis de ambiente.');
         }
+        // Tentar parsear como JSON primeiro
+        try{
+            serviceAccount = require(serviceAccountPath);
+            logger.info('Credenciais Firebase carregadas como JSON');
+        }catch(jsonError){
+            // Se não for JSON, tratar como caminho de arquivo
+            if(!fs.existsSync(serviceAccountPath)){
+                throw new Error(`Arquivo de conta de serviço não encontrado em: ${serviceAccountPath}`);
+            }
 
-        logger.info(`Caminho do serviço Firebase: ${serviceAccountPath}`);
-
-        if(!fs.existsSync(serviceAccountPath)){
-            throw new Error(`Arquivo de conta de serviço não encontrado em: ${serviceAccountPath}`);
+            serviceAccount = require(path.resolve(serviceAccountPath));
+            logger.info(`Caminho do serviço Firebase: ${serviceAccountPath}`);
         }
-
-        const serviceAccount = require(path.resolve(serviceAccountPath));
 
         //verificar campos obrigatorios
         const requiredFields = ['project_id', 'private_key_id', 'private_key', 'client_email'];
