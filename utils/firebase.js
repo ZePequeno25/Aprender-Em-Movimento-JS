@@ -29,6 +29,6 @@ try {
   module.exports = { admin, db };
 } catch (error) {
   logger.error(`Erro ao inicializar Firebase: ${error.message}`, 'FIREBASE', { stack: error.stack });
-  module.exports = { admin: null, db: null }; // Exporta null em caso de erro
+  module.exports = { admin: null, db: null };
   throw error;
 }

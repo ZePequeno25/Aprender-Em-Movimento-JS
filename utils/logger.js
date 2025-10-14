@@ -1,16 +1,14 @@
 const winston = require('winston');
 const path = require('path');
 
-// Função para capturar arquivo e linha da chamada
 const getCallerInfo = () => {
   const stack = new Error().stack.split('\n');
-  // Pular as primeiras 4 linhas para ignorar chamadas internas do Winston e getCallerInfo
   for (let i = 4; i < stack.length; i++) {
     const callerLine = stack[i] || '';
     const match = callerLine.match(/\(([^:]+):(\d+):(\d+)\)/) || callerLine.match(/at\s+(.+):(\d+):(\d+)/);
     if (match) {
       const file = path.basename(match[1]);
-      if (!file.includes('winston') && !file.includes('combine.js') && !file.includes('node_modules')) {
+      if (!file.includes('winston') && !file.includes('node_modules') && !file.includes('logger.js')) {
         return { file, line: match[2] };
       }
     }
@@ -18,7 +16,6 @@ const getCallerInfo = () => {
   return { file: 'unknown', line: 'unknown' };
 };
 
-// Formato personalizado para incluir arquivo, linha e contexto
 const customFormat = winston.format((info) => {
   const callerInfo = getCallerInfo();
   info.file = callerInfo.file;
@@ -29,7 +26,6 @@ const customFormat = winston.format((info) => {
   return info;
 });
 
-// Configuração do logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -44,11 +40,9 @@ const logger = winston.createLogger({
   ],
 });
 
-// Funções utilitárias para facilitar o uso com contexto
 module.exports = {
   logRequest: (req, context) => {
-    const logMessage = `Requisição recebida: ${req.method} ${req.url}`;
-    logger.info(logMessage, context, {
+    logger.info(`Requisição recebida: ${req.method} ${req.url}`, context, {
       method: req.method,
       url: req.url,
       headers: req.headers,
@@ -56,8 +50,7 @@ module.exports = {
     });
   },
   logAuth: (action, userId, success, meta) => {
-    const logMessage = `${action} ${success ? 'bem-sucedido' : 'falhou'} para usuário ${userId}`;
-    logger.info(logMessage, 'AUTH', {
+    logger.info(`${action} ${success ? 'bem-sucedido' : 'falhou'} para usuário ${userId}`, 'AUTH', {
       userId,
       success,
       ...meta,

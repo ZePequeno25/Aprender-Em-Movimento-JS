@@ -17,9 +17,14 @@ const register = async (req, res) => {
       dataNascimento,
     });
 
-    if (!nomeCompleto || !cpf || !userType) {
-      logger.warn('Campos obrigatórios faltando', 'AUTH', { nomeCompleto: !!nomeCompleto, cpf: !!cpf, userType: !!userType });
+    if (!nomeCompleto || !cpf || !userType || !dataNascimento) {
+      logger.warn('Campos obrigatórios faltando', 'AUTH', { nomeCompleto: !!nomeCompleto, cpf: !!cpf, userType: !!userType, dataNascimento: !!dataNascimento });
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const validUserTypes = ['aluno', 'professor'];
+    if (!validUserTypes.includes(userType)) {
+      logger.warn('userType inválido', 'AUTH', { userType });
+      return res.status(400).json({ error: 'Formato do userType inválido' });
     }
     if (!/^\d{11}$/.test(cpf)) {
       logger.warn('CPF em formato inválido', 'AUTH', { cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido' });
@@ -62,10 +67,19 @@ const login = async (req, res) => {
       logger.error('Firestore db não inicializado', 'AUTH');
       throw new Error('Firestore não inicializado');
     }
+    if (typeof collection !== 'function') {
+      logger.error('Função collection não definida', 'AUTH', { collectionType: typeof collection });
+      throw new Error('Função collection não definida');
+    }
 
     let { email, password, cpf, userType } = req.body;
 
+    const validUserTypes = ['aluno', 'professor'];
     if (cpf && userType && !email) {
+      if (!validUserTypes.includes(userType)) {
+        logger.warn('userType inválido', 'AUTH', { userType });
+        return res.status(400).json({ error: 'Formato do userType inválido' });
+      }
       if (!/^\d{11}$/.test(cpf)) {
         logger.warn('CPF em formato inválido', 'AUTH', { cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido' });
         return res.status(400).json({ error: 'Formato do CPF inválido' });
