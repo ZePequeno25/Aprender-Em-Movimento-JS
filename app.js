@@ -8,6 +8,7 @@ const questionRoutes = require('./routes/questionRoutes');
 const relationshipRoutes = require('./routes/relationshipRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const forgotpassword = require('./routes/authRoutes');
 
 // Carregar variáveis de ambiente
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -67,6 +68,7 @@ app.use('/api', questionRoutes);
 app.use('/api', relationshipRoutes);
 app.use('/api', commentRoutes);
 app.use('/api', chatRoutes);
+app.use('/api', forgotpassword);
 
 // Middleware de erro
 app.use((err, req, res, next) => {

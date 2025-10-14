@@ -1,6 +1,9 @@
-const { admin } = require('../utils/firebase');
+const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword } = require('../models/userModel');
+const bcrypt = require('bcrypt');
+
+const SALT_ROUNDS = 10;
 
 const getCurrentUserId = async (req) => {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -31,9 +34,11 @@ const register = async (req, res) => {
             return res.status(400).json({ error: 'Invalid CPF format' });
         }
         
-        const timestamp = new Date().toISOString().replace(/[-:T.]/g, '');
-        const email = `${cpf}_${userType}_${timestamp}@aprenderemmovimento.com`;
         const password = cpf; // senha inicial igual ao cpf
+        const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+        const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16); // parte do hash para garantir unicidade
+        const email = `${cpf}_${userType}_${hashKey}@aprenderemmovimento.com`;
+        
         
         logger.debug('[AUTH] Criando usuário no Firebase Auth', { email });
         const userRecord = await admin.auth().createUser({email, password});
@@ -41,7 +46,7 @@ const register = async (req, res) => {
         const userData = {
             userId: userRecord.uid,
             email,
-            password,
+            password: passwordHash,
             userType,
             nomeCompleto,
             cpf,
@@ -62,17 +67,32 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
     logger.logRequest(req, '[AUTH] Tentativa de login');
+    logger.debug('[AUTH] Body recebido:', { body: req.body });
     
     try{
-        const { email, password } = req.body;
+        let { email, password, cpf, userType } = req.body;
         
-        logger.debug('[AUTH] Credenciais recebidas', { 
-            email: email ? email.substring(0, 10) + '...' : 'não fornecido',
-            hasPassword: !!password 
-        });
-        
+        // Se CPF e userType forem fornecidos, buscar email no Firestore
+        if(cpf && userType && !email){
+            if(!/^\d{11}$/.test(cpf)){
+                logger.warn('[AUTH] CPF em formato inválido para login', { cpf: cpf.substring(0, 3) + '***' });
+                return res.status(400).json({ error: 'Invalid CPF format' });
+            }
+            const snapshot = await db.collection('users')
+                .where('cpf', '==', cpf)
+                .where('userType', '==', userType)
+                .get();
+            if(snapshot.empty){
+                logger.warn('[AUTH] Usuário não encontrado para CPF e userType', { cpf: cpf.substring(0, 3) + '***', userType });
+                return res.status(401).json({ error: 'User not found' });
+            }
+            email = snapshot.docs[0].data().email;
+            logger.debug('[AUTH] Email encontrado para login via CPF e userType', {email, cpf: cpf.substring(0, 3) + '***' });
+                
+        }
+
         if(!email || !password){
-            logger.warn('[AUTH] Email ou senha faltando', { email: !!email, password: !!password });
+            logger.warn('[AUTH] Campos obrigatórios faltando', { email: !!email, password: !!password });
             return res.status(400).json({ error: 'Missing email or password' });
         }
         
@@ -84,9 +104,7 @@ const login = async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
         
-        logger.debug('[AUTH] Gerando token customizado', { userId: user.userId });
         const token = await admin.auth().createCustomToken(user.userId);
-        
         logger.logAuth('LOGIN', user.userId, true, { userType: user.userType });
         res.status(200).json({ token, userId: user.userId, userType: user.userType });
 

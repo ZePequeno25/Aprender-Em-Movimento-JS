@@ -4,8 +4,8 @@ const { register, login, verifyUserForPasswordResetHandler, resetPassword, verif
 
 router.post('/register', register);
 router.post('/login', login);
-router.post('/verify-user', verifyUserForPasswordResetHandler);
-router.post('/reset-password', resetPassword);
-router.get('/verify-user', verifyUser);
+router.post('/forgotpassword', verifyUserForPasswordResetHandler);
+router.post('/resetpassword', resetPassword);
+router.get('/verifyuser', verifyUser);
 
 module.exports = router;
