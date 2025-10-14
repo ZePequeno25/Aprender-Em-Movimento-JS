@@ -2,7 +2,6 @@ const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const { createUser, verifyUserCredentials } = require('../models/userModel');
 const bcrypt = require('bcrypt');
-const { collection, query, where, getDocs } = require('firebase-admin/firestore');
 
 const SALT_ROUNDS = 10;
 
@@ -21,11 +20,13 @@ const register = async (req, res) => {
       logger.warn('Campos obrigatórios faltando', 'AUTH', { nomeCompleto: !!nomeCompleto, cpf: !!cpf, userType: !!userType, dataNascimento: !!dataNascimento });
       return res.status(400).json({ error: 'Missing required fields' });
     }
+    
     const validUserTypes = ['aluno', 'professor'];
     if (!validUserTypes.includes(userType)) {
       logger.warn('userType inválido', 'AUTH', { userType });
       return res.status(400).json({ error: 'Formato do userType inválido' });
     }
+    
     if (!/^\d{11}$/.test(cpf)) {
       logger.warn('CPF em formato inválido', 'AUTH', { cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido' });
       return res.status(400).json({ error: 'Formato do CPF inválido' });
@@ -67,10 +68,6 @@ const login = async (req, res) => {
       logger.error('Firestore db não inicializado', 'AUTH');
       throw new Error('Firestore não inicializado');
     }
-    if (typeof collection !== 'function') {
-      logger.error('Função collection não definida', 'AUTH', { collectionType: typeof collection });
-      throw new Error('Função collection não definida');
-    }
 
     let { email, password, cpf, userType } = req.body;
 
@@ -80,17 +77,23 @@ const login = async (req, res) => {
         logger.warn('userType inválido', 'AUTH', { userType });
         return res.status(400).json({ error: 'Formato do userType inválido' });
       }
+      
       if (!/^\d{11}$/.test(cpf)) {
         logger.warn('CPF em formato inválido', 'AUTH', { cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido' });
         return res.status(400).json({ error: 'Formato do CPF inválido' });
       }
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('cpf', '==', cpf), where('userType', '==', userType));
-      const snapshot = await getDocs(q);
+
+      // Use a sintaxe direta do Firestore Admin
+      const snapshot = await db.collection('users')
+        .where('cpf', '==', cpf)
+        .where('userType', '==', userType)
+        .get();
+
       if (snapshot.empty) {
         logger.warn('Usuário não encontrado para CPF e userType', 'AUTH', { cpf: cpf.substring(0, 3) + '***', userType });
         return res.status(401).json({ error: 'User not found' });
       }
+      
       email = snapshot.docs[0].data().email;
       logger.debug('Email recuperado para CPF', 'AUTH', { email, cpf: cpf.substring(0, 3) + '***' });
     }
@@ -108,7 +111,13 @@ const login = async (req, res) => {
 
     const token = await admin.auth().createCustomToken(user.userId);
     logger.logAuth('LOGIN', user.userId, true, { email, userType: user.userType });
-    res.status(200).json({ userId: user.userId, token, userType: user.userType, nomeCompleto: user.nomeCompleto, email });
+    res.status(200).json({ 
+      userId: user.userId, 
+      token, 
+      userType: user.userType, 
+      nomeCompleto: user.nomeCompleto, 
+      email 
+    });
   } catch (error) {
     logger.logError(error, 'AUTH');
     res.status(500).json({ error: error.message });

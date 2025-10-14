@@ -1,9 +1,9 @@
+const admin = require('firebase-admin');
 const logger = require('./logger');
 
-let admin, db;
+let adminApp, db;
 
 try {
-  admin = require('firebase-admin');
   if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
     logger.error('Variável de ambiente FIREBASE_SERVICE_ACCOUNT não definida', 'FIREBASE');
     throw new Error('FIREBASE_SERVICE_ACCOUNT não definida');
@@ -18,17 +18,23 @@ try {
     throw error;
   }
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+  // Verifica se já foi inicializado
+  if (admin.apps.length === 0) {
+    adminApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    logger.info('Firebase inicializado com sucesso', 'FIREBASE');
+  } else {
+    adminApp = admin.app();
+    logger.info('Firebase já estava inicializado, usando instância existente', 'FIREBASE');
+  }
 
-  db = admin.firestore();
-  logger.info('Firebase inicializado com sucesso', 'FIREBASE');
+  db = adminApp.firestore();
   logger.debug('Firestore instance inicializada', 'FIREBASE', { dbInitialized: !!db });
 
-  module.exports = { admin, db };
 } catch (error) {
   logger.error(`Erro ao inicializar Firebase: ${error.message}`, 'FIREBASE', { stack: error.stack });
-  module.exports = { admin: null, db: null };
   throw error;
 }
+
+module.exports = { admin, db };
