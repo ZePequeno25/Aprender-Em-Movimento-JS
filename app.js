@@ -28,28 +28,32 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
       'https://nifty-pursuit-382200.web.app',
       'https://nifty-pursuit-382200.firebaseapp.com'
     ];
-app.use(cors({
-  origin: (origin, callback) => {
-    logger.info(`Origem da requisição: ${origin || 'sem origem'}`, {
-      path: req.originUrl, //diagnostico da requisição
-      method: req.method
-    });
-      
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      logger.warn(`Origem não permitida: ${origin}`,{
-        path: req.originUrl,
-        method: req.method
-      });
-      callback(new Error('Origin not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+
+app.use((req, res, next) => {
+  const origin = req.get('origin') || 'sem origem';
+  logger.info(`Origem da requisição: ${origin}`, {
+    path: req.originalUrl,
+    method: req.method
+  });
+
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        logger.warn(`Origem não permitida: ${origin}`,{
+          path: req.originUrl,
+          method: req.method
+        });
+        callback(new Error('Origin not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  })(req, res, next);
+});
 
 app.use(express.json());
 
@@ -66,8 +70,8 @@ app.use('/api', chatRoutes);
 
 // Middleware de erro
 app.use((err, req, res, next) => {
-  logger.error(`Erro: ${err.message}`,{
-    path: req.originUrl,
+  logger.error(`Erro: ${err.message}`, {
+    path: req.originalUrl,
     method: req.method,
     origin: req.get('origin') || 'sem origem'
   });
