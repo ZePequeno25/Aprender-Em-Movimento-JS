@@ -13,7 +13,7 @@ const getCurrentUserId = async (req) => {
 };
 
 const register = async (req, res) => {
-    logger.logRequest(req, '[AUTH] Tentativa de registro');
+    logger.info('[AUTH] Tentativa de registro');
 
     try{
         const { nomeCompleto, cpf, userType, dataNascimento} = req.body;
@@ -63,7 +63,7 @@ const register = async (req, res) => {
 };
 
 const login = async (req, res) => {
-    logger.logRequest(req, '[AUTH] Tentativa de login');
+    logger.info('[AUTH] Tentativa de login');
     logger.debug('[AUTH] Body recebido:', { body: req.body });
     logger.debug('[AUTH] Firestore db instance:', !!db);
 
