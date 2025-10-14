@@ -18,7 +18,13 @@ const app = express();
 // Configurar CORS
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['https://id-preview--77c82926-cc52-4e97-9f3b-585910fae583.lovable.app', 'http://localhost:5173', 'http://localhost:3000'];
+  : [
+      'https://id-preview--b7d67252-99dc-4651-becb-4194ed477859.lovable.app',
+      'https://b7d67252-99dc-4651-becb-4194ed477859.lovableproject.com',
+      'https://id-preview--77c82926-cc52-4e97-9f3b-585910fae583.lovable.app', 
+      'http://localhost:5173', 
+      'http://localhost:3000'
+    ];
 app.use(cors({
   origin: (origin, callback) => {
     logger.info(`Origem da requisição: ${origin || 'sem origem'}`);
