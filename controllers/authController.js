@@ -35,7 +35,7 @@ const register = async (req, res) => {
 
         const password = cpf;
         const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-        const hashKey = passwordHash.replace(/[â-zA-Z0-9]/g, '').substring(0, 16);
+        const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
         const email =  `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
 
         logger.debug('Email gerado para o usuário', 'AUTH', { email });
