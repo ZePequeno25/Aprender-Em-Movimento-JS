@@ -1,101 +1,79 @@
-const { admin, db } = require('../utils/firebase');
-const logger = require('../utils/logger');
-const crypto = require('crypto');
-
-const getUser = async (userId) => {
-    try{
-        const userDoc = await db.collection('users').doc(userId).get();
-        if(!userDoc.exists) return null;
-        return userDoc.data();
-    }catch (error){
-        logger.error(`Erro ao buscar usuario ${userId}: ${error.message}`);
-        throw error;
-    }
-};
-
-const isProfessor = async (userId) => {
-    const user = await getUser(userId);
-    return user && user.userType === 'professor';
-};
-
-const isStudent = async (userId) => {
-    const user = await getUser(userId);
-    return user && user.userType === 'student';
-};
-
-const getUserName = async (userId) => {
-    const user = await getUser(userId);
-    return user ? user.nomeCompleto : 'Usuario Desconhecido';
-};
+const bcrypt = require('bcrypt');
+const { db } = require('../utils/firebase');
+const { collection, query, where, getDocs, setDoc, doc, getDoc } = require('firebase-admin/firestore');
 
 const createUser = async (userData)=>{
     try{
-        const {userId, email, password, userType, nomeCompleto, cpf,dataNascimento} = userData;
-        const hash = crypto.createHash('sha256').update(password).digest('hex'); // Hash the password
-        const userDoc = {
-            userType,
-            nomeCompleto,
-            cpf,
-            email,
-            password: hash,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            score: userType === 'aluno' ? 0 : null,
-            rank: userType === 'aluno' ? 'Aluno Novo (Iniciante)' : null,
-            dataNascimento: dataNascimento || null
-        };
-        await db.collection('users').doc(userId).set(userDoc);
-        return userDoc;
+        const { userId, ...data } = userData;
+        await setDoc(doc(db, 'users', userId), data);
 
     }catch (error){
-        logger.error(`Erro ao criar usuario ${userId}: ${error.message}`);
-        throw error;
+        throw new Error(`Erro ao criar usuário: ${error.message}`);
     }
 };
 
 const verifyUserCredentials = async (email, password) => {
     try{
-        const snapshot = await db.collection('users').where('email', '==', email).get();
-        if(snapshot.empty)return null;
-        const userDoc = snapshot.docs[0];
-        const userData = userDoc.data();
-        const hash = crypto.createHash('sha256').update(password).digest('hex');
-        if(userData.password === hash){
-            return { userId: userDoc.id, ...userData };
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email));
+        const snapshot = await getDocs(q);
+
+        if(snapshot.empty){
+            return null;
         }
-        return null;
+
+        const user = snapshot.docs[0].data();
+
+        const passwordHash = await bcrypt.compare(password, user.password);
+        if(!passwordHash){
+            return null;
+        }
+        return user;
 
     }catch (error){
-        logger.error(`Erro ao verificar credenciais do usuario ${email}: ${error.message}`);
-        throw error;
+        throw new Error(`Erro ao verificar credenciais: ${error.message}`);
     }
 };
 
 const verifyUserPasswordReset = async (email, dataNascimento) => {
     try{
-        const snapshot = await db.collection('users').where('email', '==', email).get();
-        if(snapshot.empty)return null;
-        const userDoc = snapshot.docs[0];
-        const userData = userDoc.data();
-        if(userData.dataNascimento === dataNascimento){
-            return { userId: userDoc.id, ...userData };
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email), where('dataNascimento', '==', dataNascimento));
+        const snapshot = await getDocs(q);
+
+        if(snapshot.empty){
+            return null;
         }
-        return null;
+
+        const user = snapshot.docs[0].data();
+        return user;
 
     }catch (error){
-        logger.error(`Erro ao verificar usuário para redefinição: ${userId}: ${error.message}`);
-        throw error;
+        throw new Error(`Erro ao verificar usuário para redefinição de senha: ${error.message}`);
     }
 };
 
 const resetUserPassword = async (userId, newPassword) => {
     try{
-        const hash = crypto.createHash('sha256').update(newPassword).digest('hex');
-        await db.collection('users').doc(userId).update({ password: hash });
-
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await setDoc(doc(db, 'users', userId), { password: hashedPassword }, { merge: true});
     }catch (error){
-        logger.error(`Erro ao redefinir senha do usuario ${userId}: ${error.message}`);
-        throw error;
+        throw new Error(`Erro ao redefinir senha: ${error.message}`);
     }
 };
 
-module.exports = { getUser, isProfessor, isStudent, getUserName, createUser, verifyUserCredentials, resetUserPassword, verifyUserPasswordReset };
+const getUser = async (userId) => {
+    try{
+        const userRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userRef);
+        if(!userDoc.exists()){
+            return null;
+        }
+        return userDoc.data();
+
+    }catch (error){
+        throw new Error(`Erro ao obter usuário: ${error.message}`);
+    }
+};
+
+module.exports = { getUser, createUser, verifyUserCredentials, resetUserPassword, verifyUserPasswordReset };
