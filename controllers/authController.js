@@ -1,46 +1,48 @@
-const { admin } = require('../utils/firebase');
+const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const bcrypt = require('bcrypt');
-const { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword } = require('../models/userModel');
+const { createUser, verifyUserCredential} = require('../models/userModel');
 const { collection, query, where, getDocs } = require('firebase-admin/firestore');
 
-
-const getCurrentUserId = async (req) => {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) throw new Error('Authentication token unavailable');
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    return decodedToken.uid;
-};
+const SALT_ROUNDS = 10;
 
 const register = async (req, res) => {
-    logger.logRequest(req, '[AUTH] Tentativa de registro');
-
+    logger.logRequest(req, 'AUTH');
     try{
-        const { nomeCompleto, cpf, userType, dataNascimento} = req.body;
+        const { nomeCompleto, cpf, userType, dataNascimento } = req.body;
 
-        logger.debug('[AUTH] Dados recebidos para registro', { 
+        logger.debug('Dados recebidos para registro:','AUTH', { 
             nomeCompleto, 
-            cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido',
-            userType,
-            dataNascimento 
+            cpf: cpf ? cpf.substring(0, 3) + '***' : 'Não fornecido', 
+            userType, 
+            dataNascimento
         });
 
         if(!nomeCompleto || !cpf || !userType){
-            logger.warn('[AUTH] Campos obrigatórios faltando', { nomeCompleto: !!nomeCompleto, cpf: !!cpf, userType: !!userType });
-            return res.status(400).json({ error: 'Missing required fields' });
+            logger.warn('Campos obrigatórios ausentes', 'AUTH', {
+                nomeCompleto: !!nomeCompleto,
+                cpf: !!cpf,
+                userType: !!userType
+            });
+            return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
         }
-        if(!/^\d{11}$/.test(cpf)){
-            logger.warn('[AUTH] CPF em formato inválido', { cpf: cpf.substring(0, 3) + '***' });
-            return res.status(400).json({ error: 'Invalid CPF format' });
+        if(!/^\d{11}S/.test(cpf)){
+            logger.warn('CPF inválido', 'AUTH', { 
+                cpf: cpf.substring(0, 3) + '***' 
+            });
+            return res.status(400).json({ error: 'Formato do cpf invalido' });
         }
-        
-        const password = cpf; // senha inicial igual ao cpf
-        const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-        const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
-        const email = `${cpf}_${userType}_${timestamp}@aprenderemmovimento.com`;
 
-        logger.debug('[AUTH] Criando usuário no Firebase Auth', { email });
-        const userRecord = await admin.auth().createUser({email, password});
+        const password = cpf;
+        const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+        const hashKey = passwordHash.replace(/[â-zA-Z0-9]/g, '').substring(0, 16);
+        const email =  `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
+
+        logger.debug('Email gerado para o usuário', 'AUTH', { email });
+        const userRecord = await admin.auth().createUser({
+            email,
+            password
+        });
 
         const userData = {
             userId: userRecord.uid,
@@ -53,118 +55,91 @@ const register = async (req, res) => {
         };
 
         await createUser(userData);
-        logger.logAuth('REGISTRO', userRecord.uid, true, { email, userType });
+        logger.logAuth('Registro', userRecord.uid, true, {  
+            email,
+            userType
+        });
         res.status(201).json({ userId: userRecord.uid, email, message: 'Usuário registrado com sucesso' });
-
-    }catch (error){
-        logger.logError(error, '[AUTH] Registro');
+    
+    }catch(error){
+        logger.logError(error, 'AUTH');
         res.status(500).json({ error: error.message });
     }
 };
 
-const login = async (req, res) => {
-    logger.logRequest(req, '[AUTH] Tentativa de login');
-    logger.debug('[AUTH] Body recebido:', { body: req.body });
-    logger.debug('[AUTH] Firestore db instance:', !!db);
+const login = async (req, res) =>{
+    logger.logRequest(req, 'AUTH');
+    logger.debug('Corpo recebido', 'AUTH',{
+        body: req.body
+    });
 
     try{
-        if (!db) {
-            logger.error('[AUTH] Firestore db não inicializado');
+        if(!db){
+            logger.error('Firestore não inicializado', 'AUTH');
             throw new Error('Firestore não inicializado');
         }
 
         let { email, password, cpf, userType } = req.body;
 
-        if (cpf && userType && !email) {
-            if (!/^\d{11}$/.test(cpf)) {
-                logger.warn('[AUTH] CPF em formato inválido', { cpf: cpf.substring(0, 3) + '***' });
-                return res.status(400).json({ error: 'Invalid CPF format' });
+        if(cpf && userType && !email){
+            if(!/^\d{11}S/.test(cpf)){
+                logger.warn('Cpf inválido', 'AUTH', {
+                    cpf: cpf.substring(0, 3) + '***'
+                })
+                return res.status(400).json({ error: 'Formato do cpf invalido' });
             }
             const usersRef = collection(db, 'users');
             const q = query(usersRef, where('cpf', '==', cpf), where('userType', '==', userType));
             const snapshot = await getDocs(q);
-            if (snapshot.empty) {
-                logger.warn('[AUTH] Usuário não encontrado para CPF e userType', { cpf: cpf.substring(0, 3) + '***', userType });
-                return res.status(401).json({ error: 'Usuário não encontrado' });
+
+            if(snapshot.empty){
+                logger.warn('Usuário não encontrado para o cpf e Tipo de usuario fornecidos', 'AUTH', {
+                    cpf: cpf.substring(0, 3) + '***',
+                    userType
+                });
+                return res.status(401).json({ error: 'Usuario Não encontrado' });
             }
             email = snapshot.docs[0].data().email;
-            logger.debug('[AUTH] Email recuperado para CPF', { email, cpf: cpf.substring(0, 3) + '***' });
+            logger.debug('Email recuperado do banco de dados', 'AUTH', { email });
         }
 
         if(!email || !password){
-            logger.warn('[AUTH] Campos obrigatórios faltando', { email: !!email, password: !!password });
-            return res.status(400).json({ error: 'E-mail ou senha ausentes' });
+            logger.warn('Campos obrigatórios ausentes', 'AUTH', {
+                email: !!email,
+                password: !!password
+            });
+            return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
         }
-        const user = await verifyUserCredentials(email, password);
+
+        const user = await verifyUserCredential(email, password);
+
         if(!user){
-            logger.warn('[AUTH] Credenciais inválidas', { email });
-            return res.status(401).json({ error: 'Invalid email or password' });
+            logger.warn('Credenciais inválidas', 'AUTH', { 
+                email
+            });
+            return res.status(401).json({ error: 'Credenciais inválidas' });
         }
 
         const token = await admin.auth().createCustomToken(user.userId);
-        logger.logAuth('LOGIN', user.userId, true, { email, userType: user.userType });
-        res.status(200).json({ userId: user.userId, token, userType: user.userType, nomeCompleto: user.nomeCompleto, email });
-
-    }catch (error){
-        logger.error(`Erro ao fazer login: ${error.message}`);
+        logger.logAuth('Login', user.userId, true, { 
+            email,
+            userType: user.userType
+        });
+        res.status(200).json({
+            userId: user.userId,
+            token,
+            userType: user.userType,
+            nomeCompleto: user.nomeCompleto,
+            email
+        });
+        
+    }catch(error){
+        logger.logError(error, 'AUTH');
         res.status(500).json({ error: error.message });
     }
 };
 
-const verifyUserForPasswordResetHandler = async (req, res) => {
-    try{
-        const { email, dataNascimento } = req.body;
-        if(!email || !dataNascimento){
-            logger.warn('Campos obrigatórios faltando', { email: !!email, dataNascimento: !!dataNascimento });
-            return res.status(400).json({ error: 'Falta e-mail ou data do Nascimento' });
-        }
-        const user = await verifyUserPasswordReset(email, dataNascimento);
-        if(!user){
-            logger.warn('E-mail ou data de Nascimento inválidos', { email });
-            return res.status(401).json({ error: 'E-mail ou data de Nascimento inválidos' });
-        }
-        logger.info(`Usuário verificado para redefinição de senha: ${user.userId}`);
-        res.status(200).json({ userId: user.userId, message: 'Usuário verificado para redefinição de senha' });
-
-    }catch (error){
-        logger.error(`Erro ao verificar usuário para redefinição de senha: ${error.message}`);
-        res.status(500).json({ error: error.message });
-    }
+module.exports = {
+    register,
+    login
 };
-
-const resetPassword = async (req, res) => {
-    try{
-        const { userId, newPassword } = req.body;
-        if(!userId || !newPassword){
-            logger.warn('UserId ou newPassword ausentes', { userId: !!userId, newPassword: !!newPassword });
-            return res.status(400).json({ error: 'UserId ou newPassword ausentes' });
-        }
-        await resetUserPassword(userId, newPassword);
-        await admin.auth().updateUser(userId, { password: newPassword });
-        logger.info(`Senha redefinida para usuário: ${userId}`);
-        res.status(200).json({ message: 'Senha redefinida com sucesso' });
-
-    }catch (error){
-        logger.error(`Erro ao redefinir senha: ${error.message}`);
-        res.status(500).json({ error: error.message });
-    }
-};
-
-const verifyUser = async (req, res) => {
-    try{
-        const userId = await getCurrentUserId(req);
-        const user = await require('../models/userModel').getUser(userId);
-        if(!user){
-            logger.warn('Usuário não encontrado', { userId });
-            return res.status(404).json({ error: 'Usuário não encontrado' });
-        }
-        logger.info(`Usuário verificado: ${userId}`);
-        res.status(200).json({ userId, userType: user.userType, nomeCompleto: user.nomeCompleto });
-
-    }catch (error){
-        logger.error(`Erro ao verificar usuário: ${error.message}`);
-        res.status(500).json({ error: error.message });
-    }
-};
-
-module.exports = { register, login, verifyUserForPasswordResetHandler, resetPassword, verifyUser };

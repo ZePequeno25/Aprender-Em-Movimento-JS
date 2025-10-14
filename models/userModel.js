@@ -4,7 +4,10 @@ const { collection, query, where, getDocs, setDoc, doc, getDoc } = require('fire
 
 const createUser = async (userData)=>{
     try{
-        const { userId, ...data } = userData;
+        if(!db){
+            throw new Error('Firebase não inicializado');
+        }
+        const {userId, ...data } = userData;
         await setDoc(doc(db, 'users', userId), data);
 
     }catch (error){
@@ -14,6 +17,9 @@ const createUser = async (userData)=>{
 
 const verifyUserCredentials = async (email, password) => {
     try{
+        if(!db){
+            throw new Error('Firebase db não inicializado');
+        }
         const usersRef = collection(db, 'users');
         const q = query(usersRef, where('email', '==', email));
         const snapshot = await getDocs(q);
@@ -23,11 +29,12 @@ const verifyUserCredentials = async (email, password) => {
         }
 
         const user = snapshot.docs[0].data();
+        const passwordMatch = await bcrypt.compare(password, user.password);
 
-        const passwordHash = await bcrypt.compare(password, user.password);
-        if(!passwordHash){
+        if(!passwordMatch){
             return null;
         }
+
         return user;
 
     }catch (error){
@@ -35,45 +42,4 @@ const verifyUserCredentials = async (email, password) => {
     }
 };
 
-const verifyUserPasswordReset = async (email, dataNascimento) => {
-    try{
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('email', '==', email), where('dataNascimento', '==', dataNascimento));
-        const snapshot = await getDocs(q);
-
-        if(snapshot.empty){
-            return null;
-        }
-
-        const user = snapshot.docs[0].data();
-        return user;
-
-    }catch (error){
-        throw new Error(`Erro ao verificar usuário para redefinição de senha: ${error.message}`);
-    }
-};
-
-const resetUserPassword = async (userId, newPassword) => {
-    try{
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await setDoc(doc(db, 'users', userId), { password: hashedPassword }, { merge: true});
-    }catch (error){
-        throw new Error(`Erro ao redefinir senha: ${error.message}`);
-    }
-};
-
-const getUser = async (userId) => {
-    try{
-        const userRef = doc(db, 'users', userId);
-        const userDoc = await getDoc(userRef);
-        if(!userDoc.exists()){
-            return null;
-        }
-        return userDoc.data();
-
-    }catch (error){
-        throw new Error(`Erro ao obter usuário: ${error.message}`);
-    }
-};
-
-module.exports = { getUser, createUser, verifyUserCredentials, resetUserPassword, verifyUserPasswordReset };
+module.exports = { createUser, verifyUserCredentials };

@@ -43,11 +43,11 @@ app.use(express.json());
 // Rotas
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'OK' }));
 app.use('/api', authRoutes);
-app.use('/api', questionRoutes);
+/**app.use('/api', questionRoutes);
 app.use('/api', relationshipRoutes);
 app.use('/api', commentRoutes);
 app.use('/api', chatRoutes);
-
+**/
 // Middleware de erro
 app.use((err, req, res, next) => {
   logger.error(`Erro: ${err.message}`);
