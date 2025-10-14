@@ -4,14 +4,16 @@ const path = require('path');
 // Função para capturar arquivo e linha da chamada
 const getCallerInfo = () => {
   const stack = new Error().stack.split('\n');
-  // Pega a terceira linha da pilha (ignorando a chamada do logger e da função getCallerInfo)
-  const callerLine = stack[3] || '';
-  const match = callerLine.match(/\(([^:]+):(\d+):(\d+)\)/) || callerLine.match(/at\s+(.+):(\d+):(\d+)/);
-  if (match) {
-    return {
-      file: path.basename(match[1]),
-      line: match[2],
-    };
+  // Pular as primeiras 4 linhas para ignorar chamadas internas do Winston e getCallerInfo
+  for (let i = 4; i < stack.length; i++) {
+    const callerLine = stack[i] || '';
+    const match = callerLine.match(/\(([^:]+):(\d+):(\d+)\)/) || callerLine.match(/at\s+(.+):(\d+):(\d+)/);
+    if (match) {
+      const file = path.basename(match[1]);
+      if (!file.includes('winston') && !file.includes('combine.js') && !file.includes('node_modules')) {
+        return { file, line: match[2] };
+      }
+    }
   }
   return { file: 'unknown', line: 'unknown' };
 };
@@ -21,7 +23,6 @@ const customFormat = winston.format((info) => {
   const callerInfo = getCallerInfo();
   info.file = callerInfo.file;
   info.line = callerInfo.line;
-  // Adiciona stack trace para erros
   if (info.level === 'error' && info.stack) {
     info.stackTrace = info.stack;
   }
@@ -43,16 +44,11 @@ const logger = winston.createLogger({
   ],
 });
 
-// Funções de log com contexto
-const logWithContext = (level, message, context, meta = {}) => {
-  const logMessage = context ? `[${context}] ${message}` : message;
-  logger[level](logMessage, { ...meta, context });
-};
-
 // Funções utilitárias para facilitar o uso com contexto
 module.exports = {
   logRequest: (req, context) => {
-    logWithContext('info', `Requisição recebida: ${req.method} ${req.url}`, context, {
+    const logMessage = `Requisição recebida: ${req.method} ${req.url}`;
+    logger.info(logMessage, context, {
       method: req.method,
       url: req.url,
       headers: req.headers,
@@ -60,17 +56,18 @@ module.exports = {
     });
   },
   logAuth: (action, userId, success, meta) => {
-    logWithContext('info', `${action} ${success ? 'bem-sucedido' : 'falhou'} para usuário ${userId}`, 'AUTH', {
+    const logMessage = `${action} ${success ? 'bem-sucedido' : 'falhou'} para usuário ${userId}`;
+    logger.info(logMessage, 'AUTH', {
       userId,
       success,
       ...meta,
     });
   },
   logError: (error, context) => {
-    logWithContext('error', error.message, context, { stack: error.stack });
+    logger.error(error.message, context, { stack: error.stack });
   },
-  info: (message, context, meta) => logWithContext('info', message, context, meta),
-  warn: (message, context, meta) => logWithContext('warn', message, context, meta),
-  debug: (message, context, meta) => logWithContext('debug', message, context, meta),
-  error: (message, context, meta) => logWithContext('error', message, context, meta),
+  info: (message, context, meta) => logger.info(message, context, meta),
+  warn: (message, context, meta) => logger.warn(message, context, meta),
+  debug: (message, context, meta) => logger.debug(message, context, meta),
+  error: (message, context, meta) => logger.error(message, context, meta),
 };

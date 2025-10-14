@@ -19,21 +19,24 @@ const app = express();
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : ['https://id-preview--77c82926-cc52-4e97-9f3b-585910fae583.lovable.app', 'http://localhost:5173', 'http://localhost:3000'];
-app.use(cors({
-  origin: (origin, callback) => {
-    logger.info(`Origem da requisição: ${origin || 'sem origem'}`);
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      logger.error(`Erro: Origin ${origin} not allowed by CORS`);
-      callback(new Error('Origin not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      logger.info('Origem da requisição', 'APP', { origin: origin || 'sem origem' });
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        logger.error(`Erro: Origin ${origin} not allowed by CORS`);
+        callback(new Error('Origin not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  })
+);
 
 app.use(express.json());
 
