@@ -65,48 +65,50 @@ const login = async (req, res) => {
   try {
     const { email, password, cpf, userType } = req.body;
 
-    // SE estiver usando CPF + userType para login
     if (cpf && userType && password && !email) {
-      logger.debug('Login com CPF', 'AUTH', {
-        cpf: cpf.substring(0, 3) + '***',
-        userType
-      });
+      console.log('=== DEBUG SENHA ===');
+      console.log('Password recebido:', password);
+      console.log('Tipo do password:', typeof password);
+      console.log('Comprimento do password:', password.length);
 
-      // Validações
-      const validUserTypes = ['aluno', 'professor'];
-      if (!validUserTypes.includes(userType)) {
-        return res.status(400).json({ error: 'Formato do userType inválido' });
-      }
-      
-      if (!/^\d{11}$/.test(cpf)) {
-        return res.status(400).json({ error: 'Formato do CPF inválido' });
-      }
-
-      // BUSCAR USUÁRIO POR CPF E USERTYPE (não por email)
+      // Buscar usuário
       const userSnapshot = await db.collection('users')
         .where('cpf', '==', cpf)
         .where('userType', '==', userType)
         .get();
 
       if (userSnapshot.empty) {
-        logger.warn('Usuário não encontrado para CPF e userType', 'AUTH');
         return res.status(401).json({ error: 'User not found' });
       }
 
       const userDoc = userSnapshot.docs[0];
       const userData = userDoc.data();
       
-      logger.debug('Usuário encontrado', 'AUTH', {
-        userId: userDoc.id,
-        email: userData.email
-      });
+      console.log('Hash armazenado no Firestore:', userData.password);
+      console.log('Tipo do hash:', typeof userData.password);
+      console.log('Comprimento do hash:', userData.password.length);
 
-      // VERIFICAR SENHA DIRETAMENTE
+      // DEBUG: Vamos ver TODOS os dados do usuário
+      console.log('=== TODOS OS DADOS DO USUÁRIO ===');
+      console.log(JSON.stringify(userData, null, 2));
+
+      // Verificar senha
+      console.log('Fazendo bcrypt.compare...');
       const passwordMatch = await bcrypt.compare(password, userData.password);
+      console.log('Resultado do bcrypt.compare:', passwordMatch);
+
       if (!passwordMatch) {
-        logger.warn('Senha incorreta', 'AUTH');
+        console.log('❌ SENHA NÃO CONFERE');
+        
+        // DEBUG EXTRA: Testar com o CPF como senha (fallback do registro)
+        console.log('Testando com CPF como senha...');
+        const passwordMatchWithCPF = await bcrypt.compare(cpf, userData.password);
+        console.log('Resultado com CPF como senha:', passwordMatchWithCPF);
+        
         return res.status(401).json({ error: 'Invalid email or password' });
       }
+
+      console.log('✅ SENHA CORRETA!');
 
       // GERAR TOKEN
       const token = await admin.auth().createCustomToken(userDoc.id);
