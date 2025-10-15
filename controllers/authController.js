@@ -73,8 +73,8 @@ const login = async (req, res) => {
 
     const validUserTypes = ['aluno', 'professor'];
     
-    // SE estiver usando CPF + userType para login
-    if (cpf && userType && !email) {
+    // SE estiver usando CPF + userType + PASSWORD para login
+    if (cpf && userType && password && !email) {
       if (!validUserTypes.includes(userType)) {
         logger.warn('userType inválido', 'AUTH', { userType });
         return res.status(400).json({ error: 'Formato do userType inválido' });
@@ -85,26 +85,21 @@ const login = async (req, res) => {
         return res.status(400).json({ error: 'Formato do CPF inválido' });
       }
 
-      // BUSCA PRIMEIRO O USUÁRIO NO FIRESTORE PARA OBTER O EMAIL
-      const snapshot = await db.collection('users')
-        .where('cpf', '==', cpf)
-        .where('userType', '==', userType)
-        .get();
-
-      if (snapshot.empty) {
-        logger.warn('Usuário não encontrado para CPF e userType', 'AUTH', { cpf: cpf.substring(0, 3) + '***', userType });
-        return res.status(401).json({ error: 'User not found' });
+      if (!password) {
+        logger.warn('Password faltando para login com CPF', 'AUTH');
+        return res.status(400).json({ error: 'Password é obrigatório para login com CPF' });
       }
-      
-      // Obtém o email REAL que está salvo no Firestore
-      const userDoc = snapshot.docs[0];
-      const userData = userDoc.data();
-      email = userData.email;
-      
-      logger.debug('Email recuperado do Firestore', 'AUTH', { 
+
+      // RECRIA O EMAIL EXATAMENTE COMO NO REGISTRO
+      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+      const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+      email = `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
+
+      logger.debug('Email recriado para login', 'AUTH', { 
         email, 
         cpf: cpf.substring(0, 3) + '***',
-        userType 
+        userType,
+        hashKey
       });
     }
 
@@ -113,7 +108,7 @@ const login = async (req, res) => {
       return res.status(400).json({ error: 'Missing email or password' });
     }
 
-    // AGORA faz a verificação de credenciais com o email REAL
+    // AGORA faz a verificação de credenciais com o email RECRIADO
     const user = await verifyUserCredentials(email, password);
     if (!user) {
       logger.warn('Credenciais inválidas', 'AUTH', { email });
