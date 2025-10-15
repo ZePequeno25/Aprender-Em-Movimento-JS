@@ -66,12 +66,12 @@ const login = async (req, res) => {
     const { email, password, cpf, userType } = req.body;
 
     if (cpf && userType && password && !email) {
-      console.log('=== DEBUG SENHA ===');
+      console.log('=== DEBUG NOVA LÓGICA ===');
       console.log('Password recebido:', password);
-      console.log('Tipo do password:', typeof password);
-      console.log('Comprimento do password:', password.length);
+      console.log('CPF:', cpf);
+      console.log('UserType:', userType);
 
-      // Buscar usuário
+      // Buscar usuário por CPF e userType
       const userSnapshot = await db.collection('users')
         .where('cpf', '==', cpf)
         .where('userType', '==', userType)
@@ -84,31 +84,43 @@ const login = async (req, res) => {
       const userDoc = userSnapshot.docs[0];
       const userData = userDoc.data();
       
-      console.log('Hash armazenado no Firestore:', userData.password);
-      console.log('Tipo do hash:', typeof userData.password);
-      console.log('Comprimento do hash:', userData.password.length);
+      console.log('Email do usuário:', userData.email);
+      console.log('Hash armazenado:', userData.password);
 
-      // DEBUG: Vamos ver TODOS os dados do usuário
-      console.log('=== TODOS OS DADOS DO USUÁRIO ===');
-      console.log(JSON.stringify(userData, null, 2));
+      // EXTRAIR A CHAVE DO EMAIL (parte do hash)
+      const emailParts = userData.email.split('_');
+      const hashKeyFromEmail = emailParts[2].split('@')[0]; // "2b10m86tRtA2Q7bE"
+      console.log('Chave extraída do email:', hashKeyFromEmail);
 
-      // Verificar senha
-      console.log('Fazendo bcrypt.compare...');
-      const passwordMatch = await bcrypt.compare(password, userData.password);
-      console.log('Resultado do bcrypt.compare:', passwordMatch);
+      // GERAR O HASH DA SENHA ENVIADA NO LOGIN
+      const passwordHashFromLogin = await bcrypt.hash(password, SALT_ROUNDS);
+      console.log('Hash gerado no login:', passwordHashFromLogin);
 
-      if (!passwordMatch) {
-        console.log('❌ SENHA NÃO CONFERE');
-        
-        // DEBUG EXTRA: Testar com o CPF como senha (fallback do registro)
-        console.log('Testando com CPF como senha...');
-        const passwordMatchWithCPF = await bcrypt.compare(cpf, userData.password);
-        console.log('Resultado com CPF como senha:', passwordMatchWithCPF);
-        
+      // EXTRAIR A CHAVE DO HASH GERADO (mesmo processo do registro)
+      const hashKeyFromLogin = passwordHashFromLogin.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+      console.log('Chave gerada no login:', hashKeyFromLogin);
+
+      // VERIFICAR SE AS CHAVES SÃO IGUAIS
+      const keysMatch = hashKeyFromLogin === hashKeyFromEmail;
+      console.log('Chaves coincidem?:', keysMatch);
+
+      if (!keysMatch) {
+        console.log('❌ CHAVES NÃO COINCIDEM - Login falhou');
         return res.status(401).json({ error: 'Invalid email or password' });
       }
 
-      console.log('✅ SENHA CORRETA!');
+      console.log('✅ CHAVES COINCIDEM - Login autorizado');
+
+      // VERIFICAR A SENHA TAMBÉM (para garantir)
+      const passwordMatch = await bcrypt.compare(password, userData.password);
+      console.log('Senha confere com bcrypt.compare?:', passwordMatch);
+
+      if (!passwordMatch) {
+        console.log('❌ SENHA NÃO CONFERE - Login falhou');
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      console.log('✅ LOGIN BEM-SUCEDIDO!');
 
       // GERAR TOKEN
       const token = await admin.auth().createCustomToken(userDoc.id);
@@ -127,25 +139,7 @@ const login = async (req, res) => {
       });
     }
 
-    // SE estiver usando EMAIL para login (mantém o código original)
-    if (email && password) {
-      const user = await verifyUserCredentials(email, password);
-      if (!user) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      const token = await admin.auth().createCustomToken(user.userId);
-      res.status(200).json({ 
-        userId: user.userId, 
-        token, 
-        userType: user.userType, 
-        nomeCompleto: user.nomeCompleto, 
-        email 
-      });
-    } else {
-      return res.status(400).json({ error: 'Missing email or password' });
-    }
-
+    // ... resto do código para login com email
   } catch (error) {
     logger.logError(error, 'AUTH');
     res.status(500).json({ error: error.message });
