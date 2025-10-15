@@ -72,6 +72,8 @@ const login = async (req, res) => {
     let { email, password, cpf, userType } = req.body;
 
     const validUserTypes = ['aluno', 'professor'];
+    
+    // SE estiver usando CPF + userType para login
     if (cpf && userType && !email) {
       if (!validUserTypes.includes(userType)) {
         logger.warn('userType inválido', 'AUTH', { userType });
@@ -83,7 +85,7 @@ const login = async (req, res) => {
         return res.status(400).json({ error: 'Formato do CPF inválido' });
       }
 
-      // Use a sintaxe direta do Firestore Admin
+      // BUSCA PRIMEIRO O USUÁRIO NO FIRESTORE PARA OBTER O EMAIL
       const snapshot = await db.collection('users')
         .where('cpf', '==', cpf)
         .where('userType', '==', userType)
@@ -91,22 +93,31 @@ const login = async (req, res) => {
 
       if (snapshot.empty) {
         logger.warn('Usuário não encontrado para CPF e userType', 'AUTH', { cpf: cpf.substring(0, 3) + '***', userType });
-        return res.status(401).json({error:'Usuário não encontrado'});
+        return res.status(401).json({ error: 'User not found' });
       }
       
-      email = snapshot.docs[0].data().email;
-      logger.debug('Email recuperado para CPF', 'AUTH', { email, cpf: cpf.substring(0, 3) + '***' });
+      // Obtém o email REAL que está salvo no Firestore
+      const userDoc = snapshot.docs[0];
+      const userData = userDoc.data();
+      email = userData.email;
+      
+      logger.debug('Email recuperado do Firestore', 'AUTH', { 
+        email, 
+        cpf: cpf.substring(0, 3) + '***',
+        userType 
+      });
     }
 
     if (!email || !password) {
       logger.warn('Campos obrigatórios faltando', 'AUTH', { email: !!email, password: !!password });
-      return res.status(400).json({ error: 'E-mail ou senha ausentes' });
+      return res.status(400).json({ error: 'Missing email or password' });
     }
 
+    // AGORA faz a verificação de credenciais com o email REAL
     const user = await verifyUserCredentials(email, password);
     if (!user) {
       logger.warn('Credenciais inválidas', 'AUTH', { email });
-      return res.status(401).json({ error: 'E-mail ou senha inválidos' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const token = await admin.auth().createCustomToken(user.userId);
