@@ -138,5 +138,32 @@ const resetUserPassword = async (userId, newPassword) => {
     }
 };
 
+const isProfessor = async (userId) => {
+  try {
+    console.log('🔍 [userModel] Verificando se usuário é professor:', userId);
+    
+    const userDoc = await db.collection('users').doc(userId).get();
+    
+    if (!userDoc.exists) {
+      console.log('❌ [userModel] Usuário não encontrado');
+      return false;
+    }
 
-module.exports = { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword, verifyUserByCpfForPasswordReset };
+    const userData = userDoc.data();
+    const isProfessor = userData.userType === 'professor';
+    
+    console.log('✅ [userModel] Resultado da verificação:', { 
+      userId, 
+      userType: userData.userType, 
+      isProfessor 
+    });
+    
+    return isProfessor;
+  } catch (error) {
+    console.error('❌ [userModel] Erro ao verificar se é professor:', error);
+    throw new Error(`Erro ao verificar permissões: ${error.message}`);
+  }
+};
+
+
+module.exports = { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword, verifyUserByCpfForPasswordReset, isProfessor };
