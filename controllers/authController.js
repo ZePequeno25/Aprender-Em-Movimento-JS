@@ -1,6 +1,6 @@
 const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
-const { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword } = require('../models/userModel');
+const { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword, verifyUserByCpfForPasswordReset } = require('../models/userModel');
 const bcrypt = require('bcrypt');
 
 const SALT_ROUNDS = 10;
@@ -253,26 +253,52 @@ const verifyUserForPasswordResetHandler = async (req, res) => {
     logger.logRequest(req, 'PASSWORD_RESET');
     
     try {
-        const { email, dataNascimento } = req.body;
+        const { email, dataNascimento, cpf, userType } = req.body;
         
         console.log('🔍 [PasswordReset] Verificando usuário:', { 
             email, 
-            dataNascimento 
+            dataNascimento,
+            cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido',
+            userType
         });
 
-        if(!email || !dataNascimento){
+        let user;
+
+        // ✅ OPÇÃO 1: Verificação por CPF + userType (seu caso)
+        if (cpf && userType && !email) {
+            if (!/^\d{11}$/.test(cpf)) {
+                return res.status(400).json({ error: 'Formato do CPF inválido' });
+            }
+
+            const validUserTypes = ['aluno', 'professor'];
+            if (!validUserTypes.includes(userType)) {
+                return res.status(400).json({ error: 'Formato do userType inválido' });
+            }
+
+            user = await verifyUserByCpfForPasswordReset(cpf, userType);
+
+        // ✅ OPÇÃO 2: Verificação por email + dataNascimento (original)
+        } else if (email && dataNascimento && !cpf) {
+            user = await verifyUserByEmailForPasswordReset(email, dataNascimento);
+
+        } else {
             logger.warn('Campos obrigatórios faltando', 'PASSWORD_RESET', { 
                 email: !!email, 
-                dataNascimento: !!dataNascimento 
+                dataNascimento: !!dataNascimento,
+                cpf: !!cpf,
+                userType: !!userType
             });
-            return res.status(400).json({ error: 'E-mail e data de nascimento são obrigatórios' });
+            return res.status(400).json({ 
+                error: 'Forneça (email + dataNascimento) OU (cpf + userType)' 
+            });
         }
-
-        const user = await verifyUserPasswordReset(email, dataNascimento);
         
         if(!user){
-            logger.warn('E-mail ou data de nascimento inválidos', 'PASSWORD_RESET', { email });
-            return res.status(401).json({ error: 'E-mail ou data de nascimento inválidos' });
+            logger.warn('Credenciais inválidas', 'PASSWORD_RESET', { 
+                cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido',
+                userType 
+            });
+            return res.status(401).json({ error: 'Credenciais inválidas' });
         }
 
         logger.info(`Usuário verificado para redefinição de senha: ${user.userId}`, 'PASSWORD_RESET');
@@ -284,6 +310,7 @@ const verifyUserForPasswordResetHandler = async (req, res) => {
 
         res.status(200).json({ 
             userId: user.userId, 
+            email: user.email, // ← Retorna o email para facilitar
             message: 'Usuário verificado com sucesso' 
         });
 

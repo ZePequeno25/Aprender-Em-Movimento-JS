@@ -72,6 +72,40 @@ const verifyUserPasswordReset = async (email, dataNascimento) => {
     }
 };
 
+const verifyUserByCpfForPasswordReset = async (cpf, userType) => {
+    try {
+        console.log('🔍 [userModel] Verificando usuário por CPF para reset:', { 
+            cpf: cpf.substring(0, 3) + '***',
+            userType 
+        });
+        
+        const snapshot = await db.collection('users')
+            .where('cpf', '==', cpf)
+            .where('userType', '==', userType)
+            .get();
+
+        console.log('📊 [userModel] Resultado da busca por CPF:', { encontrou: !snapshot.empty });
+
+        if(snapshot.empty){
+            return null;
+        }
+
+        const userDoc = snapshot.docs[0];
+        const user = userDoc.data();
+        
+        console.log('✅ [userModel] Usuário encontrado por CPF:', { 
+            userId: userDoc.id,
+            email: user.email 
+        });
+        
+        return { ...user, userId: userDoc.id };
+
+    } catch (error) {
+        console.error('❌ [userModel] Erro ao verificar usuário por CPF:', error);
+        throw new Error(`Erro ao verificar usuário por CPF: ${error.message}`);
+    }
+};
+
 const resetUserPassword = async (userId, newPassword) => {
     try {
         console.log('🔐 [userModel] Redefinindo senha para usuário:', userId);
@@ -92,4 +126,4 @@ const resetUserPassword = async (userId, newPassword) => {
 };
 
 
-module.exports = { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword };
+module.exports = { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword, verifyUserByCpfForPasswordReset };
