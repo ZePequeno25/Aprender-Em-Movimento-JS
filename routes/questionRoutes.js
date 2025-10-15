@@ -5,6 +5,6 @@ const { addQuestionHandler, getQuestionsHandler, editQuestionHandler, deleteQues
 router.post('/questions', addQuestionHandler);
 router.get('/questions', getQuestionsHandler);
 router.put('/questions/:questionId', editQuestionHandler);
-router.delete('/questions/:questionId', deleteQuestionHandler);
+router.delete('/delete_question/:questionId', deleteQuestionHandler);
 
 module.exports = router;
