@@ -8,42 +8,66 @@ const SALT_ROUNDS = 10;
 const register = async (req, res) => {
   logger.logRequest(req, 'AUTH');
   try {
-    const { nomeCompleto, cpf, userType, dataNascimento } = req.body;
+    const { nomeCompleto, cpf, userType, dataNascimento, password } = req.body;
+    
     logger.debug('Dados recebidos para registro', 'AUTH', {
       nomeCompleto,
       cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido',
       userType,
       dataNascimento,
+      hasCustomPassword: !!password
     });
 
     if (!nomeCompleto || !cpf || !userType || !dataNascimento) {
-      logger.warn('Campos obrigatórios faltando', 'AUTH', { nomeCompleto: !!nomeCompleto, cpf: !!cpf, userType: !!userType, dataNascimento: !!dataNascimento });
-      return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
+      logger.warn('Campos obrigatórios faltando', 'AUTH', { 
+        nomeCompleto: !!nomeCompleto, 
+        cpf: !!cpf, 
+        userType: !!userType, 
+        dataNascimento: !!dataNascimento 
+      });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
-    
+
     const validUserTypes = ['aluno', 'professor'];
     if (!validUserTypes.includes(userType)) {
       logger.warn('userType inválido', 'AUTH', { userType });
       return res.status(400).json({ error: 'Formato do userType inválido' });
     }
-    
+
     if (!/^\d{11}$/.test(cpf)) {
       logger.warn('CPF em formato inválido', 'AUTH', { cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido' });
       return res.status(400).json({ error: 'Formato do CPF inválido' });
     }
 
-    const password = cpf;
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    // ✅ SENHA CUSTOMIZADA: Se não veio password, usa CPF como padrão
+    const finalPassword = password || cpf;
+    
+    console.log('=== REGISTRO - GERANDO EMAIL ===');
+    console.log('CPF:', cpf);
+    console.log('Senha a ser usada:', finalPassword);
+    console.log('UserType:', userType);
+
+    // Gerar hash da senha (customizada ou CPF)
+    const passwordHash = await bcrypt.hash(finalPassword, SALT_ROUNDS);
     const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
     const email = `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
 
+    console.log('Hash gerado:', passwordHash);
+    console.log('Chave extraída:', hashKey);
+    console.log('Email gerado:', email);
+
     logger.debug('Criando usuário no Firebase Auth', 'AUTH', { email });
-    const userRecord = await admin.auth().createUser({ email, password });
+    
+    // Criar usuário no Firebase Auth com a senha escolhida
+    const userRecord = await admin.auth().createUser({ 
+      email, 
+      password: finalPassword  // ✅ Usa a senha customizada ou CPF
+    });
 
     const userData = {
       userId: userRecord.uid,
       email,
-      password: passwordHash,
+      password: passwordHash,  // ✅ Hash da senha real
       userType,
       nomeCompleto,
       cpf,
@@ -51,10 +75,30 @@ const register = async (req, res) => {
     };
 
     await createUser(userData);
-    logger.logAuth('REGISTER', userRecord.uid, true, { email, userType });
-    res.status(201).json({ userId: userRecord.uid, email, message: 'Usuário registrado com sucesso' });
+    
+    logger.logAuth('REGISTER', userRecord.uid, true, { 
+      email, 
+      userType,
+      usedCustomPassword: !!password 
+    });
+    
+    res.status(201).json({ 
+      userId: userRecord.uid, 
+      email, 
+      message: 'User registered successfully',
+      usedDefaultPassword: !password // Indica se usou senha padrão
+    });
   } catch (error) {
     logger.logError(error, 'AUTH');
+    
+    // Tratamento de erros específicos do Firebase Auth
+    if (error.code === 'auth/email-already-exists') {
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+    if (error.code === 'auth/invalid-email') {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+    
     res.status(500).json({ error: error.message });
   }
 };
@@ -65,11 +109,12 @@ const login = async (req, res) => {
   try {
     const { email, password, cpf, userType } = req.body;
 
+    // Login com CPF + userType
     if (cpf && userType && password && !email) {
-      console.log('=== DEBUG NOVA LÓGICA ===');
-      console.log('Password recebido:', password);
-      console.log('CPF:', cpf);
+      console.log('=== LOGIN SIMPLIFICADO ===');
+      console.log('CPF:', cpf.substring(0, 3) + '***');
       console.log('UserType:', userType);
+      console.log('Password recebido:', password);
 
       // Buscar usuário por CPF e userType
       const userSnapshot = await db.collection('users')
@@ -78,57 +123,30 @@ const login = async (req, res) => {
         .get();
 
       if (userSnapshot.empty) {
+        console.log('❌ Usuário não encontrado');
         return res.status(401).json({ error: 'User not found' });
       }
 
       const userDoc = userSnapshot.docs[0];
       const userData = userDoc.data();
       
-      console.log('Email do usuário:', userData.email);
-      console.log('Hash armazenado:', userData.password);
+      console.log('Usuário encontrado:', userData.email);
+      console.log('Hash armazenado:', userData.password.substring(0, 20) + '...');
 
-      // EXTRAIR A CHAVE DO EMAIL (parte do hash)
-      const emailParts = userData.email.split('_');
-      const hashKeyFromEmail = emailParts[2].split('@')[0]; // "2b10m86tRtA2Q7bE"
-      console.log('Chave extraída do email:', hashKeyFromEmail);
-
-      // GERAR O HASH DA SENHA ENVIADA NO LOGIN
-      const passwordHashFromLogin = await bcrypt.hash(password, SALT_ROUNDS);
-      console.log('Hash gerado no login:', passwordHashFromLogin);
-
-      // EXTRAIR A CHAVE DO HASH GERADO (mesmo processo do registro)
-      const hashKeyFromLogin = passwordHashFromLogin.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
-      console.log('Chave gerada no login:', hashKeyFromLogin);
-
-      // VERIFICAR SE AS CHAVES SÃO IGUAIS
-      const keysMatch = hashKeyFromLogin === hashKeyFromEmail;
-      console.log('Chaves coincidem?:', keysMatch);
-
-      if (!keysMatch) {
-        console.log('❌ CHAVES NÃO COINCIDEM - Login falhou');
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      console.log('✅ CHAVES COINCIDEM - Login autorizado');
-
-      // VERIFICAR A SENHA TAMBÉM (para garantir)
+      // VERIFICAR SENHA DIRETAMENTE COM O HASH SALVO
+      console.log('Verificando senha com bcrypt.compare...');
       const passwordMatch = await bcrypt.compare(password, userData.password);
-      console.log('Senha confere com bcrypt.compare?:', passwordMatch);
+      console.log('Resultado:', passwordMatch);
 
       if (!passwordMatch) {
-        console.log('❌ SENHA NÃO CONFERE - Login falhou');
+        console.log('❌ Senha incorreta');
         return res.status(401).json({ error: 'Invalid email or password' });
       }
 
-      console.log('✅ LOGIN BEM-SUCEDIDO!');
+      console.log('✅ Login bem-sucedido!');
 
       // GERAR TOKEN
       const token = await admin.auth().createCustomToken(userDoc.id);
-      
-      logger.logAuth('LOGIN', userDoc.id, true, { 
-        email: userData.email, 
-        userType: userData.userType 
-      });
       
       return res.status(200).json({ 
         userId: userDoc.id, 
@@ -139,7 +157,25 @@ const login = async (req, res) => {
       });
     }
 
-    // ... resto do código para login com email
+    // Login com email (mantém original)
+    if (email && password) {
+      const user = await verifyUserCredentials(email, password);
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const token = await admin.auth().createCustomToken(user.userId);
+      return res.status(200).json({ 
+        userId: user.userId, 
+        token, 
+        userType: user.userType, 
+        nomeCompleto: user.nomeCompleto, 
+        email 
+      });
+    }
+
+    return res.status(400).json({ error: 'Missing required fields' });
+
   } catch (error) {
     logger.logError(error, 'AUTH');
     res.status(500).json({ error: error.message });
