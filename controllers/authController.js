@@ -91,7 +91,7 @@ const login = async (req, res) => {
 
       if (snapshot.empty) {
         logger.warn('Usuário não encontrado para CPF e userType', 'AUTH', { cpf: cpf.substring(0, 3) + '***', userType });
-        return res.status(401).json({ error: 'Usuário não encontrado' });
+        return res.status(401).json({'Usuário não encontrado'});
       }
       
       email = snapshot.docs[0].data().email;
