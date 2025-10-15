@@ -79,14 +79,23 @@ const verifyUserByCpfForPasswordReset = async (cpf, userType) => {
             userType 
         });
         
+        if (!db) {
+            throw new Error('Firestore db não inicializado');
+        }
+
+        // ✅ Busca por CPF e userType
         const snapshot = await db.collection('users')
             .where('cpf', '==', cpf)
             .where('userType', '==', userType)
             .get();
 
-        console.log('📊 [userModel] Resultado da busca por CPF:', { encontrou: !snapshot.empty });
+        console.log('📊 [userModel] Resultado da busca por CPF:', { 
+            encontrou: !snapshot.empty,
+            quantidade: snapshot.size 
+        });
 
         if(snapshot.empty){
+            console.log('❌ [userModel] Nenhum usuário encontrado com este CPF e userType');
             return null;
         }
 
@@ -95,10 +104,14 @@ const verifyUserByCpfForPasswordReset = async (cpf, userType) => {
         
         console.log('✅ [userModel] Usuário encontrado por CPF:', { 
             userId: userDoc.id,
-            email: user.email 
+            email: user.email,
+            nome: user.nomeCompleto
         });
         
-        return { ...user, userId: userDoc.id };
+        return { 
+            ...user, 
+            userId: userDoc.id 
+        };
 
     } catch (error) {
         console.error('❌ [userModel] Erro ao verificar usuário por CPF:', error);

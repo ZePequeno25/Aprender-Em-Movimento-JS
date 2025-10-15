@@ -264,24 +264,31 @@ const verifyUserForPasswordResetHandler = async (req, res) => {
 
         let user;
 
-        // ✅ OPÇÃO 1: Verificação por CPF + userType (seu caso)
+        // ✅ Verificação por CPF + userType
         if (cpf && userType && !email) {
+            console.log('🔄 [PasswordReset] Usando verificação por CPF...');
+            
             if (!/^\d{11}$/.test(cpf)) {
+                console.log('❌ [PasswordReset] CPF inválido:', cpf);
                 return res.status(400).json({ error: 'Formato do CPF inválido' });
             }
 
             const validUserTypes = ['aluno', 'professor'];
             if (!validUserTypes.includes(userType)) {
+                console.log('❌ [PasswordReset] UserType inválido:', userType);
                 return res.status(400).json({ error: 'Formato do userType inválido' });
             }
 
+            // ✅ Chamada CORRETA da função
             user = await verifyUserByCpfForPasswordReset(cpf, userType);
 
-        // ✅ OPÇÃO 2: Verificação por email + dataNascimento (original)
+        // ✅ Verificação por email + dataNascimento
         } else if (email && dataNascimento && !cpf) {
+            console.log('🔄 [PasswordReset] Usando verificação por email...');
             user = await verifyUserByEmailForPasswordReset(email, dataNascimento);
 
         } else {
+            console.log('❌ [PasswordReset] Campos insuficientes');
             logger.warn('Campos obrigatórios faltando', 'PASSWORD_RESET', { 
                 email: !!email, 
                 dataNascimento: !!dataNascimento,
@@ -294,23 +301,24 @@ const verifyUserForPasswordResetHandler = async (req, res) => {
         }
         
         if(!user){
+            console.log('❌ [PasswordReset] Usuário não encontrado');
             logger.warn('Credenciais inválidas', 'PASSWORD_RESET', { 
                 cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido',
                 userType 
             });
-            return res.status(401).json({ error: 'Credenciais inválidas' });
+            return res.status(401).json({ error: 'CPF não encontrado ou tipo de usuário incorreto' });
         }
 
-        logger.info(`Usuário verificado para redefinição de senha: ${user.userId}`, 'PASSWORD_RESET');
-        
         console.log('✅ [PasswordReset] Usuário verificado com sucesso:', {
             userId: user.userId,
             email: user.email
         });
 
+        logger.info(`Usuário verificado para redefinição de senha: ${user.userId}`, 'PASSWORD_RESET');
+
         res.status(200).json({ 
             userId: user.userId, 
-            email: user.email, // ← Retorna o email para facilitar
+            email: user.email,
             message: 'Usuário verificado com sucesso' 
         });
 
