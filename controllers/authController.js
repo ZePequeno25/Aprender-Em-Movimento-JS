@@ -1,6 +1,6 @@
 const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
-const { createUser, verifyUserCredentials } = require('../models/userModel');
+const { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword } = require('../models/userModel');
 const bcrypt = require('bcrypt');
 
 const SALT_ROUNDS = 10;
@@ -249,4 +249,107 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+const verifyUserForPasswordResetHandler = async (req, res) => {
+    logger.logRequest(req, 'PASSWORD_RESET');
+    
+    try {
+        const { email, dataNascimento } = req.body;
+        
+        console.log('🔍 [PasswordReset] Verificando usuário:', { 
+            email, 
+            dataNascimento 
+        });
+
+        if(!email || !dataNascimento){
+            logger.warn('Campos obrigatórios faltando', 'PASSWORD_RESET', { 
+                email: !!email, 
+                dataNascimento: !!dataNascimento 
+            });
+            return res.status(400).json({ error: 'E-mail e data de nascimento são obrigatórios' });
+        }
+
+        const user = await verifyUserPasswordReset(email, dataNascimento);
+        
+        if(!user){
+            logger.warn('E-mail ou data de nascimento inválidos', 'PASSWORD_RESET', { email });
+            return res.status(401).json({ error: 'E-mail ou data de nascimento inválidos' });
+        }
+
+        logger.info(`Usuário verificado para redefinição de senha: ${user.userId}`, 'PASSWORD_RESET');
+        
+        console.log('✅ [PasswordReset] Usuário verificado com sucesso:', {
+            userId: user.userId,
+            email: user.email
+        });
+
+        res.status(200).json({ 
+            userId: user.userId, 
+            message: 'Usuário verificado com sucesso' 
+        });
+
+    } catch (error) {
+        console.error('❌ [PasswordReset] Erro ao verificar usuário:', error);
+        logger.error(`Erro ao verificar usuário para redefinição de senha: ${error.message}`, 'PASSWORD_RESET');
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    logger.logRequest(req, 'PASSWORD_RESET');
+    
+    try {
+        const { userId, newPassword } = req.body;
+        
+        console.log('🔐 [ResetPassword] Redefinindo senha:', { 
+            userId, 
+            newPasswordLength: newPassword?.length 
+        });
+
+        if(!userId || !newPassword){
+            logger.warn('UserId ou newPassword ausentes', 'PASSWORD_RESET', { 
+                userId: !!userId, 
+                newPassword: !!newPassword 
+            });
+            return res.status(400).json({ error: 'UserId e nova senha são obrigatórios' });
+        }
+
+        // Validação de força da senha (opcional)
+        if(newPassword.length < 6){
+            return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
+        }
+
+        console.log('🔄 [ResetPassword] Atualizando senha no Firestore...');
+        // Atualizar no Firestore (com hash)
+        await resetUserPassword(userId, newPassword);
+
+        console.log('🔄 [ResetPassword] Atualizando senha no Firebase Auth...');
+        // Atualizar no Firebase Authentication
+        await admin.auth().updateUser(userId, { 
+            password: newPassword 
+        });
+
+        logger.info(`Senha redefinida para usuário: ${userId}`, 'PASSWORD_RESET');
+        
+        console.log('✅ [ResetPassword] Senha redefinida com sucesso');
+
+        res.status(200).json({ 
+            message: 'Senha redefinida com sucesso' 
+        });
+
+    } catch (error) {
+        console.error('❌ [ResetPassword] Erro ao redefinir senha:', error);
+        logger.error(`Erro ao redefinir senha: ${error.message}`, 'PASSWORD_RESET');
+        
+        // Tratamento de erros específicos do Firebase
+        if (error.code === 'auth/user-not-found') {
+            return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+        if (error.code === 'auth/weak-password') {
+            return res.status(400).json({ error: 'Senha muito fraca' });
+        }
+        
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = { register, login, resetPassword, verifyUserForPasswordResetHandler };

@@ -40,4 +40,56 @@ const verifyUserCredentials = async (email, password) => {
   }
 };
 
-module.exports = { createUser, verifyUserCredentials };
+const verifyUserPasswordReset = async (email, dataNascimento) => {
+    try {
+        console.log('🔍 [userModel] Verificando usuário para reset de senha:', { email });
+        
+        // Usar sintaxe do Firestore Admin
+        const snapshot = await db.collection('users')
+            .where('email', '==', email)
+            .where('dataNascimento', '==', dataNascimento)
+            .get();
+
+        console.log('📊 [userModel] Resultado da busca:', { encontrou: !snapshot.empty });
+
+        if(snapshot.empty){
+            return null;
+        }
+
+        const userDoc = snapshot.docs[0];
+        const user = userDoc.data();
+        
+        console.log('✅ [userModel] Usuário encontrado:', { 
+            userId: userDoc.id,
+            email: user.email 
+        });
+        
+        return { ...user, userId: userDoc.id };
+
+    } catch (error) {
+        console.error('❌ [userModel] Erro ao verificar usuário:', error);
+        throw new Error(`Erro ao verificar usuário para redefinição de senha: ${error.message}`);
+    }
+};
+
+const resetUserPassword = async (userId, newPassword) => {
+    try {
+        console.log('🔐 [userModel] Redefinindo senha para usuário:', userId);
+        
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        await db.collection('users').doc(userId).update({ 
+            password: hashedPassword,
+            updatedAt: new Date().toISOString()
+        });
+        
+        console.log('✅ [userModel] Senha atualizada no Firestore');
+
+    } catch (error) {
+        console.error('❌ [userModel] Erro ao redefinir senha:', error);
+        throw new Error(`Erro ao redefinir senha: ${error.message}`);
+    }
+};
+
+
+module.exports = { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword };
