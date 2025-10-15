@@ -19,13 +19,21 @@ const isValidId = (id, paramName) => {
 };
 
 const addCommentHandler = async (req, res) => {
+    logger.info('💭 [commentController] Iniciando adição de comentário', 'COMMENTS');
+    
     try{
         const userId = await getCurrentUserId(req);
+        logger.info(`👤 [commentController] Usuário autenticado: ${userId}`, 'COMMENTS');
+        
         const {questionId, questionTheme, questionText, userName, userTyoe, message} = req.body;
-        if(!questionId || !questionTheme || !questionText || !userName || !userTyoe || !message){ //<-- Possivel problema
+        logger.info(`📊 [commentController] Dados: questionId=${questionId}, theme=${questionTheme}, userName=${userName}`, 'COMMENTS');
+        
+        if(!questionId || !questionTheme || !questionText || !userName || !userTyoe || !message){ 
+            logger.warn('❌ [commentController] Campos obrigatórios faltando', 'COMMENTS');
             return res.status(400).json({error: 'Missing required fields'});
         }
         if(!['aluno', 'professor'].includes(userTyoe)){
+            logger.warn(`❌ [commentController] userType inválido: ${userTyoe}`, 'COMMENTS');
             return res.status(400).json({error: 'Invalid userType'});
         }
         const commentData = {
@@ -38,11 +46,11 @@ const addCommentHandler = async (req, res) => {
             message
         };
         const commentId = await addComment(commentData);
-        logger.info(`Comentário adicionado por ${userId} com ID: ${commentId} no questionario: ${questionId}`);
+        logger.info(`✅ [commentController] Comentário adicionado: ${commentId}`, 'COMMENTS');
         res.status(201).json({message: 'Comment added successfully', id: commentId});
 
     }catch (error){
-        logger.error(`Erro ao adicionar comentário: ${error.message}`);
+        logger.error(`Erro ao adicionar comentário`, error, 'COMMENTS');
         res.status(500).json({error: error.message});
     }
 };

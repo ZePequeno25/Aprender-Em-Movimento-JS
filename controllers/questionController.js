@@ -185,4 +185,58 @@ const deleteQuestionHandler = async (req, res) => {
     }
 };
 
-module.exports = {addQuestionHandler, getQuestionsHandler, editQuestionHandler, deleteQuestionHandler};
+const updateQuestionVisibilityHandler = async (req, res) => {
+    logger.info('🔄 [questionController] Iniciando alteração de visibilidade...', 'QUESTIONS');
+    
+    try {
+        const userId = await getCurrentUserId(req);
+        logger.info(`👤 [questionController] Usuário autenticado: ${userId}`, 'QUESTIONS');
+        
+        const isUserProfessor = await isProfessor(userId);
+        if (!isUserProfessor) {
+            logger.warn(`❌ [questionController] Usuário ${userId} não é professor`, 'QUESTIONS');
+            return res.status(403).json({ error: 'Apenas professores podem alterar visibilidade' });
+        }
+
+        const { questionId, visibility } = req.body;
+        
+        logger.info(`📊 [questionController] Dados recebidos: questionId=${questionId}, visibility=${visibility}`, 'QUESTIONS');
+
+        if (!questionId || !visibility) {
+            logger.warn('❌ [questionController] Campos obrigatórios faltando', 'QUESTIONS');
+            return res.status(400).json({ error: 'questionId e visibility são obrigatórios' });
+        }
+
+        if (!['public', 'private'].includes(visibility)) {
+            logger.warn(`❌ [questionController] Visibilidade inválida: ${visibility}`, 'QUESTIONS');
+            return res.status(400).json({ error: 'visibility deve ser "public" ou "private"' });
+        }
+
+        // Atualizar visibilidade
+        await updateQuestion(questionId, { visibility, updated_by: userId });
+        
+        logger.info(`✅ [questionController] Visibilidade alterada: ${questionId} -> ${visibility}`, 'QUESTIONS');
+        res.status(200).json({ 
+            message: 'Visibilidade alterada com sucesso',
+            questionId,
+            visibility
+        });
+
+    } catch (error) {
+        logger.error('Erro ao alterar visibilidade', error, 'QUESTIONS');
+        
+        if (error.message === 'Token inválido' || error.message === 'No token provided') {
+            return res.status(401).json({ error: 'Token de autenticação inválido' });
+        }
+        
+        res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+};
+
+module.exports = {
+    addQuestionHandler, 
+    getQuestionsHandler, 
+    editQuestionHandler, 
+    deleteQuestionHandler,
+    updateQuestionVisibilityHandler
+};
