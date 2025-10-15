@@ -75,6 +75,12 @@ const login = async (req, res) => {
     
     // SE estiver usando CPF + userType + PASSWORD para login
     if (cpf && userType && password && !email) {
+      logger.debug('Iniciando login com CPF', 'AUTH', {
+        cpf: cpf.substring(0, 3) + '***',
+        userType,
+        passwordLength: password.length
+      });
+
       if (!validUserTypes.includes(userType)) {
         logger.warn('userType inválido', 'AUTH', { userType });
         return res.status(400).json({ error: 'Formato do userType inválido' });
@@ -85,22 +91,40 @@ const login = async (req, res) => {
         return res.status(400).json({ error: 'Formato do CPF inválido' });
       }
 
-      if (!password) {
-        logger.warn('Password faltando para login com CPF', 'AUTH');
-        return res.status(400).json({ error: 'Password é obrigatório para login com CPF' });
-      }
-
-      // RECRIA O EMAIL EXATAMENTE COMO NO REGISTRO
+      // DEBUG: Mostrar o processo de geração do email
+      logger.debug('Gerando hash da senha', 'AUTH', { password });
+      
       const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
-      email = `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
-
-      logger.debug('Email recriado para login', 'AUTH', { 
-        email, 
-        cpf: cpf.substring(0, 3) + '***',
-        userType,
-        hashKey
+      logger.debug('Hash gerado', 'AUTH', { 
+        passwordHash: passwordHash.substring(0, 30) + '...',
+        fullHash: passwordHash
       });
+      
+      const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+      logger.debug('HashKey extraída', 'AUTH', { hashKey });
+      
+      email = `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
+      logger.debug('Email gerado', 'AUTH', { email });
+
+      // VERIFICAR SE O EMAIL EXISTE NO FIRESTORE
+      const userSnapshot = await db.collection('users')
+        .where('email', '==', email)
+        .get();
+
+      logger.debug('Busca no Firestore', 'AUTH', {
+        emailBuscado: email,
+        encontrouUsuario: !userSnapshot.empty,
+        quantidade: userSnapshot.size
+      });
+
+      if (!userSnapshot.empty) {
+        const userData = userSnapshot.docs[0].data();
+        logger.debug('Usuário encontrado', 'AUTH', {
+          userId: userSnapshot.docs[0].id,
+          email: userData.email,
+          userType: userData.userType
+        });
+      }
     }
 
     if (!email || !password) {
@@ -108,10 +132,23 @@ const login = async (req, res) => {
       return res.status(400).json({ error: 'Missing email or password' });
     }
 
-    // AGORA faz a verificação de credenciais com o email RECRIADO
+    logger.debug('Verificando credenciais', 'AUTH', { email });
     const user = await verifyUserCredentials(email, password);
+    
     if (!user) {
-      logger.warn('Credenciais inválidas', 'AUTH', { email });
+      logger.warn('Credenciais inválidas - verifyUserCredentials retornou null', 'AUTH', { email });
+      
+      // DEBUG EXTRA: Verificar o que está no Firestore
+      const debugSnapshot = await db.collection('users')
+        .where('email', '==', email)
+        .get();
+      
+      logger.debug('DEBUG - Estado do Firestore', 'AUTH', {
+        emailBuscado: email,
+        usuarioExiste: !debugSnapshot.empty,
+        dadosUsuario: debugSnapshot.empty ? null : debugSnapshot.docs[0].data()
+      });
+      
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
