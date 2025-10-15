@@ -191,7 +191,7 @@ const login = async (req, res) => {
 
       if (userSnapshot.empty) {
         console.log('❌ Usuário não encontrado');
-        return res.status(401).json({ error: 'User not found' });
+        return res.status(401).json({ error: 'Usuário não encontrado' });
       }
 
       const userDoc = userSnapshot.docs[0];
