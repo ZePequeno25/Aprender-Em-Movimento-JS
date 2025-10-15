@@ -18,7 +18,7 @@ const register = async (req, res) => {
 
     if (!nomeCompleto || !cpf || !userType || !dataNascimento) {
       logger.warn('Campos obrigatórios faltando', 'AUTH', { nomeCompleto: !!nomeCompleto, cpf: !!cpf, userType: !!userType, dataNascimento: !!dataNascimento });
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'Campos obrigatórios ausentes' });
     }
     
     const validUserTypes = ['aluno', 'professor'];
@@ -52,7 +52,7 @@ const register = async (req, res) => {
 
     await createUser(userData);
     logger.logAuth('REGISTER', userRecord.uid, true, { email, userType });
-    res.status(201).json({ userId: userRecord.uid, email, message: 'User registered successfully' });
+    res.status(201).json({ userId: userRecord.uid, email, message: 'Usuário registrado com sucesso' });
   } catch (error) {
     logger.logError(error, 'AUTH');
     res.status(500).json({ error: error.message });
@@ -91,7 +91,7 @@ const login = async (req, res) => {
 
       if (snapshot.empty) {
         logger.warn('Usuário não encontrado para CPF e userType', 'AUTH', { cpf: cpf.substring(0, 3) + '***', userType });
-        return res.status(401).json({ error: 'User not found' });
+        return res.status(401).json({ error: 'Usuário não encontrado' });
       }
       
       email = snapshot.docs[0].data().email;
@@ -100,13 +100,13 @@ const login = async (req, res) => {
 
     if (!email || !password) {
       logger.warn('Campos obrigatórios faltando', 'AUTH', { email: !!email, password: !!password });
-      return res.status(400).json({ error: 'Missing email or password' });
+      return res.status(400).json({ error: 'E-mail ou senha ausentes' });
     }
 
     const user = await verifyUserCredentials(email, password);
     if (!user) {
       logger.warn('Credenciais inválidas', 'AUTH', { email });
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'E-mail ou senha inválidos' });
     }
 
     const token = await admin.auth().createCustomToken(user.userId);
