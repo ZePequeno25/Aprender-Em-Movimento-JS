@@ -61,99 +61,72 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   logger.logRequest(req, 'AUTH');
-  logger.debug('Body recebido', 'AUTH', { body: req.body });
-
+  
   try {
-    if (!db) {
-      logger.error('Firestore db não inicializado', 'AUTH');
-      throw new Error('Firestore não inicializado');
-    }
+    const { cpf, password, userType } = req.body;
 
-    let { email, password, cpf, userType } = req.body;
+    // DEBUG DIRETO - Vamos recriar o processo do registro
+    console.log('=== DEBUG INICIO ===');
+    console.log('CPF:', cpf);
+    console.log('Password:', password);
+    console.log('UserType:', userType);
 
-    const validUserTypes = ['aluno', 'professor'];
+    // 1. Gerar o hash EXATAMENTE como no registro
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    console.log('Hash gerado no LOGIN:', passwordHash);
     
-    // SE estiver usando CPF + userType + PASSWORD para login
-    if (cpf && userType && password && !email) {
-      logger.debug('Iniciando login com CPF', 'AUTH', {
-        cpf: cpf.substring(0, 3) + '***',
-        userType,
-        passwordLength: password.length
-      });
-
-      if (!validUserTypes.includes(userType)) {
-        logger.warn('userType inválido', 'AUTH', { userType });
-        return res.status(400).json({ error: 'Formato do userType inválido' });
-      }
-      
-      if (!/^\d{11}$/.test(cpf)) {
-        logger.warn('CPF em formato inválido', 'AUTH', { cpf: cpf ? cpf.substring(0, 3) + '***' : 'não fornecido' });
-        return res.status(400).json({ error: 'Formato do CPF inválido' });
-      }
-
-      // DEBUG: Mostrar o processo de geração do email
-      logger.debug('Gerando hash da senha', 'AUTH', { password });
-      
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      logger.debug('Hash gerado', 'AUTH', { 
-        passwordHash: passwordHash.substring(0, 30) + '...',
-        fullHash: passwordHash
-      });
-      
-      const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
-      logger.debug('HashKey extraída', 'AUTH', { hashKey });
-      
-      email = `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
-      logger.debug('Email gerado', 'AUTH', { email });
-
-      // VERIFICAR SE O EMAIL EXISTE NO FIRESTORE
-      const userSnapshot = await db.collection('users')
-        .where('email', '==', email)
-        .get();
-
-      logger.debug('Busca no Firestore', 'AUTH', {
-        emailBuscado: email,
-        encontrouUsuario: !userSnapshot.empty,
-        quantidade: userSnapshot.size
-      });
-
-      if (!userSnapshot.empty) {
-        const userData = userSnapshot.docs[0].data();
-        logger.debug('Usuário encontrado', 'AUTH', {
-          userId: userSnapshot.docs[0].id,
-          email: userData.email,
-          userType: userData.userType
-        });
-      }
-    }
-
-    if (!email || !password) {
-      logger.warn('Campos obrigatórios faltando', 'AUTH', { email: !!email, password: !!password });
-      return res.status(400).json({ error: 'Missing email or password' });
-    }
-
-    logger.debug('Verificando credenciais', 'AUTH', { email });
-    const user = await verifyUserCredentials(email, password);
+    const hashKey = passwordHash.replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+    console.log('HashKey no LOGIN:', hashKey);
     
-    if (!user) {
-      logger.warn('Credenciais inválidas - verifyUserCredentials retornou null', 'AUTH', { email });
+    const email = `${cpf}_${userType}_${hashKey}@saberemmovimento.com`;
+    console.log('Email gerado no LOGIN:', email);
+
+    // 2. Buscar TODOS os usuários com este CPF para ver o que existe
+    const usersWithCPF = await db.collection('users')
+      .where('cpf', '==', cpf)
+      .get();
+
+    console.log('Usuários encontrados com este CPF:', usersWithCPF.size);
+    usersWithCPF.forEach(doc => {
+      const user = doc.data();
+      console.log('--- Usuário encontrado ---');
+      console.log('Email:', user.email);
+      console.log('UserType:', user.userType);
+      console.log('Password hash:', user.password);
+      console.log('-----------------------');
+    });
+
+    // 3. Buscar especificamente pelo email gerado
+    const userSnapshot = await db.collection('users')
+      .where('email', '==', email)
+      .get();
+
+    console.log('Usuário encontrado com email gerado:', userSnapshot.size);
+    
+    if (userSnapshot.empty) {
+      console.log('❌ EMAIL NÃO ENCONTRADO NO FIRESTORE');
+      console.log('Email buscado:', email);
       
-      // DEBUG EXTRA: Verificar o que está no Firestore
-      const debugSnapshot = await db.collection('users')
-        .where('email', '==', email)
-        .get();
-      
-      logger.debug('DEBUG - Estado do Firestore', 'AUTH', {
-        emailBuscado: email,
-        usuarioExiste: !debugSnapshot.empty,
-        dadosUsuario: debugSnapshot.empty ? null : debugSnapshot.docs[0].data()
+      // Vamos ver qual é o email REAL que está salvo
+      const allUsers = await db.collection('users').limit(10).get();
+      console.log('=== AMOSTRA DE USUÁRIOS NO FIRESTORE ===');
+      allUsers.forEach(doc => {
+        const user = doc.data();
+        console.log(`Email: ${user.email}, CPF: ${user.cpf}, Type: ${user.userType}`);
       });
       
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    console.log('=== DEBUG FIM ===');
+
+    // Resto do código normal...
+    const user = await verifyUserCredentials(email, password);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
     const token = await admin.auth().createCustomToken(user.userId);
-    logger.logAuth('LOGIN', user.userId, true, { email, userType: user.userType });
     res.status(200).json({ 
       userId: user.userId, 
       token, 
@@ -162,7 +135,7 @@ const login = async (req, res) => {
       email 
     });
   } catch (error) {
-    logger.logError(error, 'AUTH');
+    console.error('Erro no login:', error);
     res.status(500).json({ error: error.message });
   }
 };
