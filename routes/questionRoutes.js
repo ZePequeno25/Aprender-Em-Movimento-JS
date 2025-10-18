@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middlewares/authMiddleware');
 const { 
     addQuestionHandler, 
     getQuestionsHandler, 
@@ -8,10 +9,10 @@ const {
     updateQuestionVisibilityHandler
 } = require('../controllers/questionController');
 
-router.post('/questions', addQuestionHandler);
+router.post('/questions/add', authMiddleware, addQuestionHandler);
 router.get('/questions', getQuestionsHandler);
-router.put('/questions/:questionId', editQuestionHandler);
-router.delete('/questions/:questionId', deleteQuestionHandler);
-router.patch('/questions/visibility', updateQuestionVisibilityHandler);
+router.put('/questions/:questionId', authMiddleware, editQuestionHandler);
+router.delete('/questions/:questionId', authMiddleware, deleteQuestionHandler);
+router.patch('/questions/visibility', authMiddleware, updateQuestionVisibilityHandler);
 
 module.exports = router;

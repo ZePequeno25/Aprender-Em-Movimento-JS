@@ -3,6 +3,8 @@ const logger = require('../utils/logger');
 const {isProfessor} = require('../models/userModel');
 const {addQuestion, getQuestions, updateQuestion, deleteQuestion} = require('../models/questionModel');
 
+//possivel uso futuro
+/** 
 const getCurrentUserId = async (req) => {
   try {
     const authHeader = req.headers.authorization;
@@ -13,20 +15,23 @@ const getCurrentUserId = async (req) => {
     const token = authHeader.replace('Bearer ', '');
     console.log('🔐 [questionController] Verificando token...');
     
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    console.log('✅ [questionController] Token válido para usuário:', decodedToken.uid);
-    
     return decodedToken.uid;
   } catch (error) {
     console.error('❌ [questionController] Erro ao verificar token:', error);
     throw new Error('Token inválido');
   }
 };
+*/
 
 const addQuestionHandler = async (req, res) => {
   try {
-    const userId = await getCurrentUserId(req);
-    console.log(`👤 [questionController] Usuário autenticado: ${userId}`);
+    const userId = req.userId;
+    
+    if (!userId) {
+      console.log('❌ [questionController] Usuário não autenticado');
+      return res.status(401).json({ error: 'Usuário não autenticado' });
+    }
+
     if (!await isProfessor(userId)) {
       console.log(`❌ [questionController] Usuário ${userId} não é professor`);
       return res.status(403).json({ error: 'Only teachers can add questions' });
@@ -91,7 +96,11 @@ const getQuestionsHandler = async (req, res) => {
 
 const editQuestionHandler = async (req, res) => {
   try {
-    const userId = await getCurrentUserId(req);
+    const userId = req.userId;
+        
+    if(!userId) { 
+      return res.status(401).json({error: 'Usuário não autenticado'});
+    }
     const { questionId } = req.params;
     if (!await isProfessor(userId)) {
       console.log(`❌ [questionController] Usuário ${userId} não é professor`);
