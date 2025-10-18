@@ -4,10 +4,19 @@ const { isProfessor, isStudent } = require('../models/userModel');
 const { addComment, getTeacherComments, getStudentComments, addCommentResponse } = require('../models/commentModel');
 
 const getCurrentUserId = async (req) => {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) throw new Error('Authentication token unavailable');
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    logger.error('❌ [commentController] Token de autenticação não fornecido', 'COMMENTS');
+    throw new Error('Token de autenticação indisponível');
+  }
+  try {
     const decodedToken = await admin.auth().verifyIdToken(token);
+    logger.info(`✅ [commentController] Token válido para userId: ${decodedToken.uid}`, 'COMMENTS');
     return decodedToken.uid;
+  } catch (error) {
+    logger.error(`❌ [commentController] Erro ao verificar token: ${error.message}`, 'COMMENTS');
+    throw new Error('Token de autenticação indisponível');
+  }
 };
 
 const isValidId = (id, paramName) => {
@@ -30,11 +39,11 @@ const addCommentHandler = async (req, res) => {
         
         if(!questionId || !questionTheme || !questionText || !userName || !userType || !message){ 
             logger.warn('❌ [commentController] Campos obrigatórios faltando', 'COMMENTS');
-            return res.status(400).json({error: 'Missing required fields'});
+            return res.status(400).json({error: 'Campos obrigatórios ausentes'});
         }
         if(!['aluno', 'professor'].includes(userType)){
             logger.warn(`❌ [commentController] userType inválido: ${userType}`, 'COMMENTS');
-            return res.status(400).json({error: 'Invalid userType'});
+            return res.status(400).json({error: 'Tipo de usuário inválido'});
         }
         const commentData = {
             question_id: questionId,
@@ -47,7 +56,7 @@ const addCommentHandler = async (req, res) => {
         };
         const commentId = await addComment(commentData);
         logger.info(`✅ [commentController] Comentário adicionado: ${commentId}`, 'COMMENTS');
-        res.status(201).json({message: 'Comment added successfully', id: commentId});
+        res.status(201).json({message: 'Comentário adicionado com sucesso', id: commentId});
 
     }catch (error){
         logger.error(`Erro ao adicionar comentário`, error, 'COMMENTS');
@@ -59,11 +68,11 @@ const getTeacherCommentsHandler = async (req, res) => {
     try{
         const {teacherId} = req.params;
         if(!isValidId(teacherId, 'teacherId')){
-            return res.status(400).json({error: 'Invalid teacherId'});
+            return res.status(400).json({error: 'TeacherId inválido'});
         }
         const userId = await getCurrentUserId(req);
         if(userId !== teacherId || !await isProfessor(userId)){
-            return res.status(403).json({error: 'Access denied'});
+            return res.status(403).json({error: 'Acesso negado'});
         }
         const comments = await getTeacherComments(teacherId);
         res.status(200).json({comments});
@@ -77,11 +86,11 @@ const getStudentCommentsHandler = async (req, res) => {
     try{
         const {studentId} = req.params;
         if(!isValidId(studentId, 'studentId')){
-            return res.status(400).json({error: 'Invalid studentId'});
+            return res.status(400).json({error: 'StudentId inválido'});
         }
         const userId = await getCurrentUserId(req);
         if(userId !== studentId || !await isStudent(userId)){
-            return res.status(403).json({error: 'Access denied'});
+            return res.status(403).json({error: 'Acesso negado'});
         }
         const comments = await getStudentComments(studentId);
         res.status(200).json({comments});
@@ -96,14 +105,14 @@ const addCommentResponseHandler = async (req, res) => {
         const userId = await getCurrentUserId(req);
         const {commentId, userName, userType, message} = req.body;
         if(!commentId || !userName || !userType || !message){
-            return res.status(400).json({error: 'Missing required fields'});
+            return res.status(400).json({error: 'Campos obrigatórios ausentes'});
         }
         if(!['aluno', 'professor'].includes(userType)){
-            return res.status(400).json({error: 'Invalid userType'});
+            return res.status(400).json({error: 'Tipo de usuário inválido'});
         }
         const commentDoc = await db.collection('comments').doc(commentId).get();
         if(!commentDoc.exists){
-            return res.status(404).json({error: 'Comment not found'});
+            return res.status(404).json({error: 'Comentário não encontrado'});
         }
         const relationData = {
             comment_id: commentId,
@@ -114,7 +123,7 @@ const addCommentResponseHandler = async (req, res) => {
         };
         const responseId = await addCommentResponse(responseData);
         logger.info(`Resposta adicionada por ${userId} com ID: ${responseId} ao comentário: ${commentId}`);
-        res.status(201).json({message: 'Response added successfully', id: responseId});
+        res.status(201).json({message: 'Resposta adicionada com sucesso', id: responseId});
 
     }catch (error){
         logger.error(`Erro ao adicionar resposta ao comentário: ${error.message}`);
