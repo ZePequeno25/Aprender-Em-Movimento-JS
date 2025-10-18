@@ -2,21 +2,41 @@ const { admin } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const { isProfessor, isStudent } = require('../models/userModel');
 const { addComment, getTeacherComments, getStudentComments, addCommentResponse } = require('../models/commentModel');
+const ()
 
 const getCurrentUserId = async (req) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    logger.error('❌ [commentController] Token de autenticação não fornecido', 'COMMENTS');
-    throw new Error('Token de autenticação indisponível');
-  }
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    logger.info(`✅ [commentController] Token válido para userId: ${decodedToken.uid}`, 'COMMENTS');
-    return decodedToken.uid;
-  } catch (error) {
-    logger.error(`❌ [commentController] Erro ao verificar token: ${error.message}`, 'COMMENTS');
-    throw new Error('Token de autenticação indisponível');
-  }
+    try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) throw new Error('Authentication token unavailable');
+        
+        console.log('🔐 [commentController] Verificando token...');
+        
+        // ✅ Tenta verificar como ID token
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            console.log('✅ [commentController] Token válido (ID token):', decodedToken.uid);
+            return decodedToken.uid;
+        } catch (idTokenError) {
+            // ❌ Se não for ID token, busca usuário no Firestore
+            console.log('⚠️ [commentController] Não é ID token, buscando no Firestore...');
+            
+            const usersSnapshot = await db.collection('users')
+                .where('authTokens', 'array-contains', token)
+                .get();
+            
+            if (usersSnapshot.empty) {
+                throw new Error('Token inválido - usuário não encontrado');
+            }
+            
+            const userDoc = usersSnapshot.docs[0];
+            console.log('✅ [commentController] Usuário encontrado via token:', userDoc.id);
+            return userDoc.id;
+        }
+        
+    } catch (error) {
+        console.error('❌ [commentController] Erro ao verificar token:', error);
+        throw new Error('Token inválido: ' + error.message);
+    }
 };
 
 const isValidId = (id, paramName) => {

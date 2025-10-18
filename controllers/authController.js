@@ -214,7 +214,15 @@ const login = async (req, res) => {
 
       // GERAR TOKEN
       const token = await admin.auth().createCustomToken(userDoc.id);
+
+      // ✅ SALVAR O TOKEN NO FIRESTORE PARA PODER VERIFICAR DEPOIS
+      await db.collection('users').doc(userDoc.id).update({
+        authTokens: admin.firestore.FieldValue.arrayUnion(token),
+        lastLogin: new Date().toISOString()
+      });
       
+      console.log('✅ Token salvo no usuário para verificação posterior');
+
       return res.status(200).json({ 
         userId: userDoc.id, 
         token, 
