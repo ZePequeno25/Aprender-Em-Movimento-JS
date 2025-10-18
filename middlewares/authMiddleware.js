@@ -1,4 +1,4 @@
-const { admin } = require('../utils/firebase');
+const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
 
 const authMiddleware = async (req, res, next) => {
@@ -13,42 +13,49 @@ const authMiddleware = async (req, res, next) => {
     const token = authHeader.replace('Bearer ', '');
     
     console.log('🔐 [authMiddleware] Verificando token...');
-    
+
+    // ✅ PRIMEIRO: Tenta verificar como ID token (caso o frontend envie ID token)
     try {
-      // ✅ Tenta verificar como ID token primeiro
       const decodedToken = await admin.auth().verifyIdToken(token);
       console.log('✅ [authMiddleware] Token válido (ID token) para usuário:', decodedToken.uid);
       
       req.user = decodedToken;
       req.userId = decodedToken.uid;
       req.teacherId = decodedToken.uid;
-      
+      next();
+      return;
     } catch (idTokenError) {
-      // ❌ Se falhar, pode ser custom token - vamos tentar uma abordagem diferente
-      console.log('⚠️ [authMiddleware] Não é ID token, tentando alternativa...');
-      
-      // ✅ Busca o usuário no Firestore pelo token (como você faz no login)
-      const userSnapshot = await admin.firestore().collection('users')
-        .where('customTokens', 'array-contains', token)
-        .get();
-      
-      if (userSnapshot.empty) {
-        throw new Error('Token inválido');
-      }
-      
-      const userDoc = userSnapshot.docs[0];
-      const userData = userDoc.data();
-      
-      req.user = { uid: userDoc.id, ...userData };
-      req.userId = userDoc.id;
-      req.teacherId = userDoc.id;
-      
-      console.log('✅ [authMiddleware] Usuário autenticado via custom token:', userDoc.id);
+      console.log('⚠️ [authMiddleware] Não é ID token, verificando como custom token...');
     }
+
+    // ✅ SEGUNDO: Busca usuário pelo token salvo no Firestore
+    console.log('🔍 [authMiddleware] Buscando usuário com este token...');
+    
+    const usersSnapshot = await db.collection('users')
+      .where('currentToken', '==', token)
+      .get();
+
+    if (usersSnapshot.empty) {
+      console.log('❌ [authMiddleware] Token não encontrado em nenhum usuário');
+      throw new Error('Token inválido - não associado a nenhum usuário');
+    }
+
+    const userDoc = usersSnapshot.docs[0];
+    const userData = userDoc.data();
+    
+    console.log('✅ [authMiddleware] Usuário autenticado via custom token:', userDoc.id);
+    
+    req.user = { 
+      uid: userDoc.id, 
+      ...userData 
+    };
+    req.userId = userDoc.id;
+    req.teacherId = userDoc.id;
     
     next();
+
   } catch (error) {
-    console.error('❌ [authMiddleware] Erro ao verificar token:', error);
+    console.error('❌ [authMiddleware] Erro ao verificar token:', error.message);
     return res.status(401).json({ error: 'Token de autenticação inválido' });
   }
 };
