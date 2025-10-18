@@ -13,8 +13,37 @@ const isValidId = (id, paramName) => {
     return true;
 };
 
+const getStudentsHandler = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split('Bearer ')[1];
+    if (!token) return res.status(401).json({ error: 'Token inválido' });
+
+    const decoded = await auth.verifyIdToken(token);
+    const professorId = decoded.uid;
+
+    // Busca alunos vinculados ao professor (ajuste conforme seu schema)
+    const snapshot = await db.collection('teacherStudent')
+      .where('teacherId', '==', professorId)
+      .get();
+    
+    const studentIds = snapshot.docs.map(doc => doc.data().studentId);
+    const students = [];
+    
+    for (const studentId of studentIds) {
+      const userDoc = await db.collection('users').doc(studentId).get();
+      if (userDoc.exists) {
+        students.push({ id: userDoc.id, ...userDoc.data() });
+      }
+    }
+
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 const getCurrentUserId = async (req) => {
-    const token = req.headers.autorization?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace('Bearer ', '');
     if(!token) throw new Error('Authentication token unavailable');
     const decodedToken = await admin.auth().verifyIdToken(token);
     return decodedToken.uid;
@@ -176,11 +205,14 @@ const unlinkStudent = async (req, res) => {
     }
 };
 
+
+
 module.exports = {
     generateTeacherCode,
     getTeacherCodeHandler,
     linkStudentByCode,
     getTeacherStudentsHandler,
     getStudentRelationsHandler,
-    unlinkStudent
+    unlinkStudent,
+    getStudentsHandler
   };

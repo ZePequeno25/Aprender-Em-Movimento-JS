@@ -10,7 +10,7 @@ const getCurrentUserId = async (req) => {
     return decodedToken.uid;
 };
 
-const isValidId = (id) => {
+const isValidId = (id, paramName) => {
     if(!id || id === 'undefined' || typeof id !== 'string' || id.trim().length === 0){
         logger.warn(`ID inválido para ${paramName}: ${id}`);
         return false;

@@ -7,7 +7,7 @@ const {
     addCommentResponseHandler
 } = require('../controllers/commentController');
 
-router.post('/comment', addCommentHandler);
+router.post('/comments', addCommentHandler);
 router.get('/teacher-comments/:teacherId', getTeacherCommentsHandler);
 router.get('/student-comments/:studentId', getStudentCommentsHandler);
 router.post('/comment-response', addCommentResponseHandler);

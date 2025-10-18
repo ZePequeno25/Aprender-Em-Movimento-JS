@@ -25,15 +25,15 @@ const addCommentHandler = async (req, res) => {
         const userId = await getCurrentUserId(req);
         logger.info(`👤 [commentController] Usuário autenticado: ${userId}`, 'COMMENTS');
         
-        const {questionId, questionTheme, questionText, userName, userTyoe, message} = req.body;
+        const {questionId, questionTheme, questionText, userName, userType, message} = req.body;
         logger.info(`📊 [commentController] Dados: questionId=${questionId}, theme=${questionTheme}, userName=${userName}`, 'COMMENTS');
         
-        if(!questionId || !questionTheme || !questionText || !userName || !userTyoe || !message){ 
+        if(!questionId || !questionTheme || !questionText || !userName || !userType || !message){ 
             logger.warn('❌ [commentController] Campos obrigatórios faltando', 'COMMENTS');
             return res.status(400).json({error: 'Missing required fields'});
         }
-        if(!['aluno', 'professor'].includes(userTyoe)){
-            logger.warn(`❌ [commentController] userType inválido: ${userTyoe}`, 'COMMENTS');
+        if(!['aluno', 'professor'].includes(userType)){
+            logger.warn(`❌ [commentController] userType inválido: ${userType}`, 'COMMENTS');
             return res.status(400).json({error: 'Invalid userType'});
         }
         const commentData = {
@@ -42,7 +42,7 @@ const addCommentHandler = async (req, res) => {
             question_text: questionText,
             user_id: userId,
             user_name: userName,
-            user_type: userTyoe,
+            user_type: userType,
             message
         };
         const commentId = await addComment(commentData);
