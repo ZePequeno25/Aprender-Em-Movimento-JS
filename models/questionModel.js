@@ -2,15 +2,17 @@ const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
 
 const addQuestion = async (questionData) => {
-    try{
+    try {
         const docRef = await db.collection('questions').add({
-            ...questionData,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        ...questionData,
+        created_at: admin.firestore.FieldValue.serverTimestamp(),
+        visibility: questionData.visibility || 'public'
         });
+        console.log(`✅ [questionModel] Questão criada: ${docRef.id}`);
         return docRef.id;
 
-    }catch (error){
-        logger.error(`Erro ao adicionar pergunta: ${error.message}`);
+    } catch (error) {
+        console.error(`Erro ao adicionar questão: ${error.message}`);
         throw error;
     }
 };
@@ -32,14 +34,15 @@ const getQuestions = async ()=>{
 };
 
 const updateQuestion = async (questionId, questionData) => {
-    try{
+    try {
         await db.collection('questions').doc(questionId).update({
             ...questionData,
-            update_at: admin.firestore.FieldValue.serverTimestamp()
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
+        console.log(`✅ [questionModel] Questão atualizada: ${questionId}`);
 
-    }catch (error){
-        logger.error(`Erro ao atualizar pergunta ${questionId}: ${error.message}`);
+    } catch (error) {
+        console.error(`Erro ao atualizar questão ${questionId}: ${error.message}`);
         throw error;
     }
 };
