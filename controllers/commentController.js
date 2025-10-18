@@ -2,7 +2,6 @@ const { admin } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const { isProfessor, isStudent } = require('../models/userModel');
 const { addComment, getTeacherComments, getStudentComments, addCommentResponse } = require('../models/commentModel');
-const ()
 
 const getCurrentUserId = async (req) => {
     try {
