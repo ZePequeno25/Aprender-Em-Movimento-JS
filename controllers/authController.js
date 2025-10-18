@@ -172,6 +172,7 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   logger.logRequest(req, 'AUTH');
+  
   try {
     const { email, password, cpf, userType } = req.body;
 
@@ -211,23 +212,18 @@ const login = async (req, res) => {
 
       console.log('✅ Login bem-sucedido!');
 
-      // GERAR custom token
-      const customToken = await admin.auth().createCustomToken(userDoc.id);
+      // GERAR TOKEN
+      const token = await admin.auth().createCustomToken(userDoc.id);
 
-      try {
-        await db.collection('users').doc(userDoc.id).update({
-            currentToken: customToken, // ✅ Salva o token atual
-            lastLogin: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        });
-        console.log('✅ Token salvo no usuário para verificação');
-      } catch (error) {
-        console.log('⚠️ Não foi possível salvar o token, mas o login continua...');
-      }
-
+      // ✅ SALVAR O TOKEN NO FIRESTORE PARA PODER VERIFICAR DEPOIS
+      await db.collection('users').doc(userDoc.id).update({
+        authTokens: admin.firestore.FieldValue.arrayUnion(token),
+        lastLogin: new Date().toISOString()
+      });
+      
       return res.status(200).json({ 
         userId: userDoc.id, 
-        customToken, 
+        token, 
         userType: userData.userType, 
         nomeCompleto: userData.nomeCompleto, 
         email: userData.email 
