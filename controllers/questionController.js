@@ -31,12 +31,12 @@ const addQuestionHandler = async (req, res) => {
     console.log('👤 [questionController] Usuário autenticado:', userId);
     
     const isUserProfessor = await isProfessor(userId);
-    if (!isUserProfessor) {
-      console.log('❌ [questionController] Usuário não é professor');
-      return res.status(403).json({ error: 'Apenas professores podem adicionar questões' });
+    if (!await isProfessor(userId)) {
+      console.log(`❌ [questionController] Usuário ${userId} não é professor`);
+      return res.status(403).json({ error: 'Only teachers can add questions' });
     }
 
-    const { theme, question_text, options_json, correct_option_index, feedback_title, feedback_illustration, feedback_text } = req.body;
+    const { theme, question_text, options_json, correct_option_index, feedback_title, feedback_illustration, feedback_text, visibility } = req.body;
     
     console.log('📊 [questionController] Dados recebidos:', {
       theme,
@@ -48,8 +48,7 @@ const addQuestionHandler = async (req, res) => {
 
     // Validações
     if (!theme || !question_text || !options_json || correct_option_index === undefined) {
-      console.log('❌ [questionController] Campos obrigatórios faltando');
-      return res.status(400).json({ error: 'Campos obrigatórios faltando: theme, question_text, options_json, correct_option_index' });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
     // Validar que options_json é um array válido
@@ -67,15 +66,14 @@ const addQuestionHandler = async (req, res) => {
     const questionData = {
       theme: theme.toLowerCase().trim(),
       question_text,
-      options_json: options, // ✅ Agora é um array
+      options_json: typeof options_json === 'string' ? JSON.parse(options_json) : options_json,
       correct_option_index: parseInt(correct_option_index),
       feedback_title: feedback_title || '',
       feedback_illustration: feedback_illustration || '',
       feedback_text: feedback_text || '',
       created_by: userId,
-      updated_by: userId,
-      visibility: 'private', // ✅ Valor padrão
-      createdAt: new Date().toISOString()
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      visibility: visibility || 'public'
     };
 
     console.log('💾 [questionController] Salvando questão...');

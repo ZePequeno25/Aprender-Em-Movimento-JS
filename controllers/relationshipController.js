@@ -139,18 +139,21 @@ const linkStudentByCode = async (req, res) =>{
     }
 };
 
-const getTeacherStudentsHandler = async (req, res) =>{
-    try{
-        const {teacherId} = req.params;
-        if(!isValidId(teacherId, 'teacherId')){
-            return res.status(400).json({ error: 'Invalid teacherId' });
+const getTeacherStudentsHandler = async (req, res) => {
+    try {
+        const userId = await getCurrentUserId(req);
+        console.log(`🔍 [relationshipController] Buscando alunos para teacherId: ${userId}`);
+        
+        if (!await isProfessor(userId)) {
+        return res.status(403).json({ error: 'Only teachers can access student data' });
         }
-        const relations = await getTeacherStudents(teacherId);
+
+        const relations = await getTeacherStudents(userId);
         res.status(200).json({ relations });
 
-    }catch (error){
-        logger.error(`Erro ao listar alunos: ${error.message}`);
-        res.status(500).json({ error: error.message });
+    } catch (error) {
+        console.error(`Erro ao listar alunos: ${error.message}`);
+        res.status(error.message.includes('Token') ? 401 : 500).json({ error: error.message });
     }
 };
 
