@@ -229,11 +229,13 @@ try {
       // GERAR TOKEN
       const token = await admin.auth().createCustomToken(userDoc.id);
 
-      // ✅ SALVAR O TOKEN NO FIRESTORE PARA PODER VERIFICAR DEPOIS
+      // ✅ SALVAR O TOKEN NO CAMPO CORRETO (currentToken)
       await db.collection('users').doc(userDoc.id).update({
-        authTokens: admin.firestore.FieldValue.arrayUnion(token),
-        lastLogin: new Date().toISOString()
+        currentToken: token, // ✅ Agora salva no campo currentToken
+        lastLogin: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
+      console.log('✅ Token salvo no campo currentToken do usuário:', userDoc.id);
       
       return res.status(200).json({ 
         userId: userDoc.id, 
@@ -243,7 +245,7 @@ try {
         email: userData.email 
       });
     }
-
+    
     // Login com email (mantém original)
     if (email && password) {
       const user = await verifyUserCredentials(email, password);
@@ -252,6 +254,7 @@ try {
       }
 
       const token = await admin.auth().createCustomToken(user.userId);
+      
       return res.status(200).json({ 
         userId: user.userId, 
         token, 
