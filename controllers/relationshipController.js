@@ -15,29 +15,71 @@ const isValidId = (id, paramName) => {
 
 const getStudentsHandler = async (req, res) => {
   try {
-    const token = req.headers.authorization?.split('Bearer ')[1];
-    if (!token) return res.status(401).json({ error: 'Token inválido' });
+    console.log('👥 [relationshipController] Buscando dados dos alunos por Document ID...');
+    
+    const userId = await getCurrentUserId(req);
+    console.log(`🔍 [relationshipController] Usuário autenticado (Document ID): ${userId}`);
+    
+    // ✅ VERIFICAR SE É PROFESSOR BUSCANDO PELO DOCUMENT ID
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      console.log(`❌ [relationshipController] Usuário não encontrado: ${userId}`);
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    
+    const userData = userDoc.data();
+    if (userData.userType !== 'professor') {
+      console.log(`❌ [relationshipController] Usuário ${userId} não é professor`);
+      return res.status(403).json({ error: 'Apenas professores podem acessar dados dos alunos' });
+    }
 
-    const decoded = await auth.verifyIdToken(token);
-    const professorId = decoded.uid;
-
-    // Busca alunos vinculados ao professor (ajuste conforme seu schema)
-    const snapshot = await db.collection('teacherStudent')
-      .where('teacherId', '==', professorId)
+    // Buscar alunos vinculados ao professor pelo Document ID
+    const snapshot = await db.collection('teacher_students')
+      .where('teacher_id', '==', userId) // ✅ Document ID do professor
       .get();
     
-    const studentIds = snapshot.docs.map(doc => doc.data().studentId);
+    console.log(`📊 [relationshipController] ${snapshot.size} relações encontradas`);
+    
     const students = [];
     
-    for (const studentId of studentIds) {
-      const userDoc = await db.collection('users').doc(studentId).get();
-      if (userDoc.exists) {
-        students.push({ id: userDoc.id, ...userDoc.data() });
+    for (const doc of snapshot.docs) {
+      const relationData = doc.data();
+      const studentId = relationData.student_id; // ✅ Document ID do aluno
+      
+      try {
+        // ✅ BUSCAR ALUNO PELO DOCUMENT ID
+        const studentDoc = await db.collection('users').doc(studentId).get();
+        
+        if (studentDoc.exists) {
+          const studentData = studentDoc.data();
+          students.push({
+            id: studentId, // ✅ Document ID do aluno
+            nomeCompleto: studentData.nomeCompleto,
+            email: studentData.email,
+            userType: studentData.userType,
+            score: studentData.score || 0,
+            rank: studentData.rank || 'Iniciante',
+            cpf: studentData.cpf,
+            dataNascimento: studentData.dataNascimento,
+            // Dados da relação
+            relationId: doc.id, // ✅ Document ID da relação
+            joined_at: relationData.joined_at ? relationData.joined_at.toDate().toISOString() : null,
+            student_name: relationData.student_name,
+            teacher_name: relationData.teacher_name
+          });
+        } else {
+          console.warn(`⚠️ [relationshipController] Aluno não encontrado: ${studentId}`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ [relationshipController] Erro ao buscar aluno ${studentId}: ${error.message}`);
       }
     }
 
-    res.json(students);
+    console.log(`✅ [relationshipController] ${students.length} alunos retornados`);
+    res.status(200).json(students);
+    
   } catch (error) {
+    console.error(`❌ [relationshipController] Erro ao buscar alunos: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 };
@@ -207,8 +249,6 @@ const unlinkStudent = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
-
 
 module.exports = {
     generateTeacherCode,
