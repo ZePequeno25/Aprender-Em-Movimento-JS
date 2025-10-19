@@ -229,7 +229,13 @@ try {
       // GERAR TOKEN
       const token = await admin.auth().createCustomToken(userDoc.id);
 
+      console.log('🔑 [LOGIN] Token gerado:');
+      console.log('📏 Comprimento:', token.length);
+      console.log('📝 Primeiros 50 chars:', token.substring(0, 50));
+      console.log('📝 Últimos 50 chars:', token.substring(token.length - 50));
+
       // ✅ SALVAR O TOKEN NO CAMPO CORRETO (currentToken)
+      console.log('💾 [LOGIN] Salvando token no Firestore...');
       await db.collection('users').doc(userDoc.id).update({
         currentToken: token, // ✅ Agora salva no campo currentToken
         lastLogin: new Date().toISOString(),
@@ -237,6 +243,15 @@ try {
       });
       console.log('✅ Token salvo no campo currentToken do usuário:', userDoc.id);
       
+      // ✅ VERIFICAR SE SALVOU CORRETAMENTE
+      const userAfterSave = await db.collection('users').doc(userDoc.id).get();
+      const savedToken = userAfterSave.data().currentToken;
+
+      console.log('✅ [LOGIN] Token salvo no Firestore:');
+      console.log('📏 Comprimento salvo:', savedToken.length);
+      console.log('📝 Primeiros 50 chars salvos:', savedToken.substring(0, 50));
+      console.log('🔍 Tokens são IGUAIS?', token === savedToken);
+
       return res.status(200).json({ 
         userId: userDoc.id, 
         token, 

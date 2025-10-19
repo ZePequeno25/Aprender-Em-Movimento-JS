@@ -6,83 +6,73 @@ const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      logger.warn('Token não fornecido ou formato inválido', 'AUTH_MIDDLEWARE');
+      console.log('❌ [authMiddleware] Header Authorization inválido ou faltando');
       return res.status(401).json({ error: 'Token de autenticação não fornecido' });
     }
 
     const token = authHeader.replace('Bearer ', '');
     
-    console.log('🔐 [authMiddleware] Verificando token...');
+    console.log('🔐 [authMiddleware] Iniciando verificação...');
+    console.log('📏 Token recebido length:', token.length);
+    console.log('🔍 Token recebido (início):', token.substring(0, 30));
+    console.log('🔍 Token recebido (fim):', token.substring(token.length - 30));
 
-    // ✅ PRIMEIRO: Tenta verificar como ID token
-    try {
-      const decodedToken = await admin.auth().verifyIdToken(token);
-      console.log('✅ [authMiddleware] Token válido (ID token) para usuário:', decodedToken.uid);
+    // ✅ BUSCAR TODOS OS USUÁRIOS PARA DEBUG
+    console.log('🔍 [authMiddleware] Buscando TODOS os usuários para debug...');
+    const allUsers = await db.collection('users').get();
+    
+    console.log('👥 Total de usuários no sistema:', allUsers.size);
+    
+    let tokenFound = false;
+    allUsers.forEach(doc => {
+      const userData = doc.data();
+      const storedToken = userData.currentToken || '';
       
-      req.user = decodedToken;
-      req.userId = decodedToken.uid;
-      req.teacherId = decodedToken.uid;
+      console.log(`📋 Usuário ${doc.id}:`);
+      console.log(`   - currentToken existe: ${!!userData.currentToken}`);
+      console.log(`   - storedToken length: ${storedToken.length}`);
+      console.log(`   - storedToken (início): ${storedToken.substring(0, 30)}`);
+      
+      if (storedToken === token) {
+        tokenFound = true;
+        console.log('🎯 ✅ TOKEN ENCONTRADO NO USUÁRIO:', doc.id);
+        
+        req.user = { 
+          uid: doc.id, 
+          ...userData 
+        };
+        req.userId = doc.id;
+        req.teacherId = doc.id;
+      }
+    });
+
+    if (tokenFound) {
+      console.log('✅ [authMiddleware] Autenticação bem-sucedida!');
       next();
       return;
-    } catch (idTokenError) {
-      console.log('⚠️ [authMiddleware] Não é ID token, verificando como custom token...');
     }
 
-    // ✅ SEGUNDO: Busca usuário pelo currentToken no Firestore
-    console.log('🔍 [authMiddleware] Buscando usuário com currentToken...');
+    console.log('❌ [authMiddleware] NENHUM usuário com este token foi encontrado');
     
-    const usersSnapshot = await db.collection('users')
-      .where('currentToken', '==', token)
-      .get();
-
-    console.log('📊 [authMiddleware] Usuários encontrados com este token:', usersSnapshot.size);
-
-    if (usersSnapshot.empty) {
-      console.log('❌ [authMiddleware] Nenhum usuário com este currentToken');
+    // Mostrar diferença entre tokens
+    if (allUsers.size > 0) {
+      const firstUser = allUsers.docs[0].data();
+      const firstUserToken = firstUser.currentToken || '';
       
-      // ✅ TENTATIVA ALTERNATIVA: Buscar por UID extraído do token
-      try {
-        const decoded = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        const userId = decoded.uid;
-        
-        if (userId) {
-          console.log('🔍 [authMiddleware] Tentando buscar usuário por UID:', userId);
-          const userDoc = await db.collection('users').doc(userId).get();
-          
-          if (userDoc.exists) {
-            const userData = userDoc.data();
-            console.log('✅ [authMiddleware] Usuário validado via UID do token:', userId);
-            
-            req.user = { uid: userId, ...userData };
-            req.userId = userId;
-            req.teacherId = userId;
-            next();
-            return;
-          }
-        }
-      } catch (decodeError) {
-        console.log('❌ [authMiddleware] Não foi possível extrair UID do token');
+      console.log('🔍 COMPARAÇÃO DE TOKENS:');
+      console.log('📏 Token recebido length:', token.length);
+      console.log('📏 Token salvo length:', firstUserToken.length);
+      console.log('📝 São iguais?', token === firstUserToken);
+      
+      if (token.length !== firstUserToken.length) {
+        console.log('⚠️ Os tokens têm comprimentos DIFERENTES!');
       }
-      
-      throw new Error('Token não associado a nenhum usuário');
     }
 
-    const userDoc = usersSnapshot.docs[0];
-    const userData = userDoc.data();
-    
-    console.log('✅ [authMiddleware] Usuário autenticado via currentToken:', userDoc.id);
-    
-    req.user = { 
-      uid: userDoc.id, 
-      ...userData 
-    };
-    req.userId = userDoc.id;
-    req.teacherId = userDoc.id;
-    
-    next();
+    throw new Error('Token não associado a nenhum usuário');
 
   } catch (error) {
-    console.error('❌ [authMiddleware] Erro ao verificar token:', error.message);
+    console.error('❌ [authMiddleware] Erro final:', error.message);
     return res.status(401).json({ error: 'Token de autenticação inválido' });
   }
 };
