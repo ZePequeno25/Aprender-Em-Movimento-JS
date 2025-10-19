@@ -1,12 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const {generateTeacherCode,
+const authMiddleware = require('../middlewares/authMiddleware');
+const {
+    generateTeacherCode,
     getTeacherCodeHandler,
     linkStudentByCode,
     getTeacherStudentsHandler,
     getStudentRelationsHandler,
     unlinkStudent,
-    getStudentsHandler} = require('../controllers/relationshipController');
+    getStudentsHandler
+} = require('../controllers/relationshipController');
+
+router.use(authMiddleware); // ✅ Aplica a TODAS as rotas
 
 router.post('/teacher-code', generateTeacherCode);
 router.get('/teacher-code/:teacherId', getTeacherCodeHandler);

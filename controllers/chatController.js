@@ -62,19 +62,22 @@ const getChatMessagesHandler = async (req, res) => {
     logger.info('📨 [chatController] Buscando mensagens de chat', 'CHAT');
     
     try{
-        const {sendrId, receiverId} = req.query;
-        logger.info(`📊 [chatController] Params: sendrId=${sendrId}, receiverId=${receiverId}`, 'CHAT');
+        // ✅ CORRIGIDO: Usar query params
+        const { senderId, receiverId } = req.query;
+        logger.info(`📊 [chatController] Params: senderId=${senderId}, receiverId=${receiverId}`, 'CHAT');
         
-        if(!isValidId(sendrId, 'sender_id' ) || !isValidId(receiverId, 'receiver_id')){
+        if(!isValidId(senderId, 'sender_id') || !isValidId(receiverId, 'receiver_id')){
             logger.warn(`❌ [chatController] IDs inválidos`, 'CHAT');
             return res.status(400).json({error: 'Invalid sender or recipient IDs'});
         }
+        
         const userId = await getCurrentUserId(req);
-        if(userId !== sendrId && userId !== receiverId){
+        if(userId !== senderId && userId !== receiverId){
             logger.warn(`❌ [chatController] Usuário ${userId} sem permissão`, 'CHAT');
             return res.status(403).json({error: 'You can only view your own messages'});
         }
-        const messages = await getChatMessages(sendrId, receiverId);
+        
+        const messages = await getChatMessages(senderId, receiverId);
         logger.info(`✅ [chatController] ${messages.length} mensagens encontradas`, 'CHAT');
         res.status(200).json(messages);
 

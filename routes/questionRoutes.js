@@ -9,10 +9,12 @@ const {
     updateQuestionVisibilityHandler
 } = require('../controllers/questionController');
 
-router.post('/questions/add', authMiddleware, addQuestionHandler);
+router.use(authMiddleware); // ✅ Aplica a TODAS as rotas
+
+router.post('/questions', addQuestionHandler);
 router.get('/questions', getQuestionsHandler);
-router.put('/questions/:questionId', authMiddleware, editQuestionHandler);
-router.delete('/questions/:questionId', authMiddleware, deleteQuestionHandler);
-router.patch('/questions/visibility', authMiddleware, updateQuestionVisibilityHandler);
+router.put('/questions/:questionId', editQuestionHandler);
+router.delete('/questions/:questionId', deleteQuestionHandler);
+router.patch('/questions/:questionId/visibility', updateQuestionVisibilityHandler);
 
 module.exports = router;

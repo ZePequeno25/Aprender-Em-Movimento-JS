@@ -176,7 +176,11 @@ const updateQuestionVisibilityHandler = async (req, res) => {
         }
 
         // Atualizar visibilidade
-        await updateQuestion(questionId, { visibility, updated_by: userId });
+        await updateQuestion(questionId, { 
+            visibility, 
+            updated_by: userId,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
         
         logger.info(`✅ [questionController] Visibilidade alterada: ${questionId} -> ${visibility}`, 'QUESTIONS');
         res.status(200).json({ 
