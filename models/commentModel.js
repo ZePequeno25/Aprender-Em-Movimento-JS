@@ -16,8 +16,15 @@ const addComment = async (commentData) => {
 
 const getTeacherComments = async (teacherId) => {
   try {
-    console.log(`🔍 [commentModel] Buscando alunos do professor: ${teacherId}`);
+    console.log(`🔍 [commentModel] Buscando alunos do professor (Document ID): ${teacherId}`);
     
+    // ✅ BUSCAR PELO DOCUMENT ID DO PROFESSOR
+    const teacherDoc = await db.collection('users').doc(teacherId).get();
+    if (!teacherDoc.exists) {
+      console.log(`❌ [commentModel] Professor não encontrado: ${teacherId}`);
+      return [];
+    }
+
     // Buscar alunos vinculados ao professor
     const studentSnapshot = await db.collection('teacher_students')
       .where('teacher_id', '==', teacherId)
@@ -48,12 +55,12 @@ const getTeacherComments = async (teacherId) => {
         let responses = [];
         try {
           const responsesSnapshot = await db.collection('comments-responses')
-            .where('comment_id', '==', doc.id)
+            .where('comment_id', '==', doc.id) // ✅ Document ID do comentário
             .orderBy('created_at')
             .get();
             
           responses = responsesSnapshot.docs.map(r => ({
-            id: r.id,
+            id: r.id, // ✅ Document ID da resposta
             comment_id: r.data().comment_id,
             user_id: r.data().user_id,
             user_name: r.data().user_name,
@@ -66,11 +73,11 @@ const getTeacherComments = async (teacherId) => {
         }
         
         comments.push({
-          id: doc.id,
+          id: doc.id, // ✅ Document ID do comentário
           question_id: commentData.question_id,
           question_theme: commentData.question_theme,
           question_text: commentData.question_text,
-          user_id: commentData.user_id,
+          user_id: commentData.user_id, // ✅ Document ID do usuário
           user_name: commentData.user_name,
           user_type: commentData.user_type,
           message: commentData.message,
