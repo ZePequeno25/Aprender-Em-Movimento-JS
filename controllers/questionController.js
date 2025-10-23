@@ -1,27 +1,7 @@
 const { admin } = require('../utils/firebase');
 const logger = require('../utils/logger');
-const {isProfessor} = require('../models/userModel');
-const {addQuestion, getQuestions, updateQuestion, deleteQuestion} = require('../models/questionModel');
-
-//possivel uso futuro
-/** 
-const getCurrentUserId = async (req) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new Error('No token provided');
-    }
-    
-    const token = authHeader.replace('Bearer ', '');
-    console.log('🔐 [questionController] Verificando token...');
-    
-    return decodedToken.uid;
-  } catch (error) {
-    console.error('❌ [questionController] Erro ao verificar token:', error);
-    throw new Error('Token inválido');
-  }
-};
-*/
+const { isProfessor } = require('../models/userModel');
+const { addQuestion, getQuestions, updateQuestion, deleteQuestion } = require('../models/questionModel');
 
 const addQuestionHandler = async (req, res) => {
   try {
@@ -66,7 +46,12 @@ const getQuestionsHandler = async (req, res) => {
   console.log('📚 [questionController] Buscando todas as questões...');
   
   try {
-    const questions = await getQuestions();
+    const userId = req.userId;
+    const userIsProfessor = await isProfessor(userId);
+
+    // Se não for professor, busca apenas as questões públicas
+    const questions = await getQuestions(userIsProfessor ? null : 'public');
+
     console.log(`✅ [questionController] ${questions.length} questões encontradas`);
     
     // ✅ Formatar para o frontend
@@ -133,7 +118,7 @@ const editQuestionHandler = async (req, res) => {
 
 const deleteQuestionHandler = async (req, res) => {
     try{
-        const userId = await getCurrentUserId(req);
+        const userId = req.userId;
         if(!await isProfessor(userId)){
             return res.status(403).json({error: 'Only teachers can delete questions'});
         };
@@ -152,7 +137,7 @@ const updateQuestionVisibilityHandler = async (req, res) => {
     logger.info('🔄 [questionController] Iniciando alteração de visibilidade...', 'QUESTIONS');
     
     try {
-        const userId = await getCurrentUserId(req);
+        const userId = req.userId;
         logger.info(`👤 [questionController] Usuário autenticado: ${userId}`, 'QUESTIONS');
         
         const isUserProfessor = await isProfessor(userId);
@@ -161,7 +146,9 @@ const updateQuestionVisibilityHandler = async (req, res) => {
             return res.status(403).json({ error: 'Apenas professores podem alterar visibilidade' });
         }
 
-        const { questionId, visibility } = req.body;
+        const { questionId } = req.params;
+        const { visibility } = req.body;
+
         
         logger.info(`📊 [questionController] Dados recebidos: questionId=${questionId}, visibility=${visibility}`, 'QUESTIONS');
 

@@ -16,9 +16,13 @@ const addQuestion = async (questionData) => {
     }
 };
 
-const getQuestions = async () => {
+const getQuestions = async (visibility = null) => {
     try{
-        const snapshot = await db.collection('questions').get();
+        let query = db.collection('questions');
+        if (visibility) {
+            query = query.where('visibility', '==', visibility);
+        }
+        const snapshot = await query.get();
         return snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
