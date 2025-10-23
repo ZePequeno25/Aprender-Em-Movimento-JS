@@ -1,6 +1,6 @@
 const { admin } = require('../utils/firebase');
 const logger = require('../utils/logger');
-const db = admin.firestore();
+const db = admin.firestore(); // FIX: Initialize Firestore db instance
 
 const {isProfessor, isStudent, getUserName} = require('../models/userModel');
 const {createTeacherCode, getTeacherCode, useTeacherCode} = require('../models/teacherCodeModel');
@@ -115,10 +115,10 @@ const generateTeacherCode = async (req, res) => {
     }
 };
 
-const getTeacherCodeHandler = async (req, res) =>{
+const getTeacherCodeHandler = async (req, res) => {
     logger.info('📋 [relationshipController] Buscando código do professor', 'RELATIONSHIPS');
     
-    try{
+    try {
         const { teacherId } = req.params;
         logger.info(`📊 [relationshipController] teacherId: ${teacherId}`, 'RELATIONSHIPS');
         
@@ -142,10 +142,10 @@ const getTeacherCodeHandler = async (req, res) =>{
     }
 };
 
-const linkStudentByCode = async (req, res) =>{
+const linkStudentByCode = async (req, res) => {
     logger.info('🔗 [relationshipController] Iniciando vinculação de aluno', 'RELATIONSHIPS');
     
-    try{
+    try {
         const userId = await getCurrentUserId(req);
         logger.info(`👤 [relationshipController] Usuário autenticado: ${userId}`, 'RELATIONSHIPS');
         
@@ -192,7 +192,7 @@ const getTeacherStudentsHandler = async (req, res) => {
         }
 
         const relations = await getTeacherStudents(userId);
-        res.status(200).json({ relations });
+        res.status(200).json(relations || []);
 
     } catch (error) {
         console.error(`Erro ao listar alunos: ${error.message}`);
@@ -211,7 +211,7 @@ const getStudentRelationsHandler = async (req, res) => {
             return res.status(403).json({ error: 'Access denied' });
         }
         const relations = await getStudentRelations(studentId);
-        res.status(200).json({ relations });
+        res.status(200).json(relations || []);
 
     }catch (error){
         logger.error(`Erro ao listar professores: ${error.message}`);
