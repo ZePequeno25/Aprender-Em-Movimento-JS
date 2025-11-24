@@ -165,10 +165,20 @@ const getStudentComments = async (studentId) => {
     try{
         console.log(`🔍 [commentModel] Buscando comentários do aluno: ${studentId}`);
         
-        const snapshot = await db.collection('comments')
-            .where('user_id', '==', studentId)
-            .orderBy('created_at', 'desc')
-            .get();
+        // Tentar buscar com orderBy primeiro
+        let snapshot;
+        try {
+            snapshot = await db.collection('comments')
+                .where('user_id', '==', studentId)
+                .orderBy('created_at', 'desc')
+                .get();
+        } catch (orderByError) {
+            // Se falhar por falta de índice, buscar sem orderBy e ordenar manualmente
+            console.warn(`⚠️ [commentModel] Erro com orderBy, buscando sem ordenação: ${orderByError.message}`);
+            snapshot = await db.collection('comments')
+                .where('user_id', '==', studentId)
+                .get();
+        }
         
         console.log(`📊 [commentModel] ${snapshot.size} comentários encontrados do aluno`);
         
@@ -180,17 +190,31 @@ const getStudentComments = async (studentId) => {
             let responses = [];
             try {
                 // Tentar primeiro comments-responses
-                let responsesSnapshot = await db.collection('comments-responses')
-                    .where('comment_id', '==', doc.id)
-                    .orderBy('created_at')
-                    .get();
-                
-                // Se não encontrar, tentar comments_responses
-                if (responsesSnapshot.empty) {
-                    responsesSnapshot = await db.collection('comments_responses')
+                let responsesSnapshot;
+                try {
+                    responsesSnapshot = await db.collection('comments-responses')
                         .where('comment_id', '==', doc.id)
                         .orderBy('created_at')
                         .get();
+                } catch (error) {
+                    // Se falhar, tentar sem orderBy
+                    responsesSnapshot = await db.collection('comments-responses')
+                        .where('comment_id', '==', doc.id)
+                        .get();
+                }
+                
+                // Se não encontrar, tentar comments_responses
+                if (responsesSnapshot.empty) {
+                    try {
+                        responsesSnapshot = await db.collection('comments_responses')
+                            .where('comment_id', '==', doc.id)
+                            .orderBy('created_at')
+                            .get();
+                    } catch (error) {
+                        responsesSnapshot = await db.collection('comments_responses')
+                            .where('comment_id', '==', doc.id)
+                            .get();
+                    }
                 }
             
                 responses = responsesSnapshot.docs.map(r => ({
@@ -202,6 +226,12 @@ const getStudentComments = async (studentId) => {
                     message: r.data().message,
                     createdAt: r.data().created_at ? r.data().created_at.toDate().toISOString(): null
                 }));
+                
+                // Ordenar manualmente se necessário
+                responses.sort((a, b) => {
+                    if (!a.createdAt || !b.createdAt) return 0;
+                    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                });
             } catch (error) {
                 console.warn(`⚠️ [commentModel] Erro ao buscar respostas: ${error.message}`);
             }
@@ -219,6 +249,12 @@ const getStudentComments = async (studentId) => {
                 responses
             });
         }
+        
+        // Ordenar comentários por data (mais recentes primeiro) se não foi possível usar orderBy
+        comments.sort((a, b) => {
+            if (!a.createdAt || !b.createdAt) return 0;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
         
         console.log(`✅ [commentModel] Total de ${comments.length} comentários retornados do aluno`);
         return comments;
