@@ -165,5 +165,56 @@ const isProfessor = async (userId) => {
   }
 };
 
+const isStudent = async (userId) => {
+  try {
+    console.log('🔍 [userModel] Verificando se usuário é aluno:', userId);
+    
+    const userDoc = await db.collection('users').doc(userId).get();
+    
+    if (!userDoc.exists) {
+      console.log('❌ [userModel] Usuário não encontrado');
+      return false;
+    }
 
-module.exports = { createUser, verifyUserCredentials, verifyUserPasswordReset, resetUserPassword, verifyUserByCpfForPasswordReset, isProfessor };
+    const userData = userDoc.data();
+    const isStudent = userData.userType === 'aluno';
+    
+    console.log('✅ [userModel] Resultado da verificação:', { 
+      userId, 
+      userType: userData.userType, 
+      isStudent 
+    });
+    
+    return isStudent;
+  } catch (error) {
+    console.error('❌ [userModel] Erro ao verificar se é aluno:', error);
+    throw new Error(`Erro ao verificar permissões: ${error.message}`);
+  }
+};
+
+const getUserName = async (userId) => {
+  try {
+    const userDoc = await db.collection('users').doc(userId).get();
+    
+    if (!userDoc.exists) {
+      return null;
+    }
+
+    const userData = userDoc.data();
+    return userData.nomeCompleto || null;
+  } catch (error) {
+    console.error('❌ [userModel] Erro ao obter nome do usuário:', error);
+    throw new Error(`Erro ao obter nome do usuário: ${error.message}`);
+  }
+};
+
+module.exports = { 
+  createUser, 
+  verifyUserCredentials, 
+  verifyUserPasswordReset, 
+  resetUserPassword, 
+  verifyUserByCpfForPasswordReset, 
+  isProfessor,
+  isStudent,
+  getUserName
+};
