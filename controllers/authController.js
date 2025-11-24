@@ -142,6 +142,19 @@ const register = async (req, res) => {
     console.log('💾 [REGISTER] Salvando usuário no Firestore...');
     await createUser(userData);
 
+    // ✅ Gerar código de professor automaticamente se for professor
+    if (userType === 'professor') {
+      try {
+        const { createTeacherCode } = require('../models/teacherCodeModel');
+        const linkCode = `PROF_${userRecord.uid.slice(0, 8).toUpperCase()}`;
+        await createTeacherCode(userRecord.uid, linkCode);
+        console.log('✅ [REGISTER] Código de professor gerado automaticamente:', linkCode);
+      } catch (codeError) {
+        console.error('⚠️ [REGISTER] Erro ao gerar código de professor (não crítico):', codeError.message);
+        // Não falha o registro se não conseguir gerar o código
+      }
+    }
+
     // Log de sucesso
     logger.logAuth('REGISTER', userRecord.uid, true, { 
       email, 

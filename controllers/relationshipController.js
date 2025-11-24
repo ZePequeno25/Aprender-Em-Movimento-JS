@@ -104,7 +104,12 @@ const generateTeacherCode = async (req, res) => {
             return res.status(403).json({error: 'Only teachers can generate codes'});
         }
         
-        const linkCode = `PROF_${userId.slice(0, 8).toUpperCase()}`;
+        // Gerar novo código único com timestamp para garantir unicidade
+        const timestamp = Date.now().toString(36).toUpperCase().slice(-4);
+        const linkCode = `PROF_${userId.slice(0, 6).toUpperCase()}${timestamp}`;
+        
+        // Invalidar códigos antigos do professor (opcional - pode manter múltiplos códigos ativos)
+        // Por enquanto, vamos apenas criar um novo código
         await createTeacherCode(userId, linkCode);
         logger.info(`✅ [relationshipController] Código gerado: ${linkCode}`, 'RELATIONSHIPS');
         res.status(200).json({ linkCode, message: 'Teacher code generated successfully' });
@@ -131,9 +136,21 @@ const getTeacherCodeHandler = async (req, res) =>{
             logger.warn(`❌ [relationshipController] Acesso negado para ${userId}`, 'RELATIONSHIPS');
             return res.status(403).json({ error: 'Access denied' });
         }
-        const codeData = await getTeacherCode(teacherId);
-        const linkCode = codeData ? codeData.code : `PROF_${userId.slice(0, 8).toUpperCase()}`;
-        logger.info(`✅ [relationshipController] Código encontrado: ${linkCode}`, 'RELATIONSHIPS');
+        let codeData = await getTeacherCode(teacherId);
+        let linkCode;
+        
+        // Se não existe código válido, gerar um novo
+        if (!codeData) {
+            logger.info(`📝 [relationshipController] Nenhum código encontrado, gerando novo...`, 'RELATIONSHIPS');
+            const timestamp = Date.now().toString(36).toUpperCase().slice(-4);
+            linkCode = `PROF_${userId.slice(0, 6).toUpperCase()}${timestamp}`;
+            await createTeacherCode(userId, linkCode);
+            logger.info(`✅ [relationshipController] Novo código gerado: ${linkCode}`, 'RELATIONSHIPS');
+        } else {
+            linkCode = codeData.code;
+            logger.info(`✅ [relationshipController] Código encontrado: ${linkCode}`, 'RELATIONSHIPS');
+        }
+        
         res.status(200).json({ linkCode });
 
     }catch (error){
