@@ -4,10 +4,10 @@ const {addChatMessage, getChatMessages} = require('../models/chatModel');
 const {isProfessor, isStudent, getUserName} = require('../models/userModel');
 
 const getCurrentUserId = async (req) => {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if(!token) throw new Error('No token provided');
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    return decodedToken.uid;
+    if (!req.userId) {
+        throw new Error('Usuário não autenticado - middleware não aplicado');
+    }
+    return req.userId;
 };
 
 const isValidId = (id, paramName) => {
@@ -72,6 +72,7 @@ const getChatMessagesHandler = async (req, res) => {
         }
         
         const userId = await getCurrentUserId(req);
+        // Verify user is either sender or receiver
         if(userId !== senderId && userId !== receiverId){
             logger.warn(`❌ [chatController] Usuário ${userId} sem permissão`, 'CHAT');
             return res.status(403).json({error: 'You can only view your own messages'});

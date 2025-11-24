@@ -1,4 +1,4 @@
-const { admin } = require('../utils/firebase');
+const { admin, db } = require('../utils/firebase');
 const logger = require('../utils/logger');
 const { isProfessor, isStudent } = require('../models/userModel');
 const { addComment, getTeacherComments, getStudentComments, addCommentResponse } = require('../models/commentModel');
@@ -113,7 +113,7 @@ const addCommentResponseHandler = async (req, res) => {
             user_type: userType,
             message
         };
-        const responseId = await addCommentResponse(responseData);
+        const responseId = await addCommentResponse(relationData);
         logger.info(`Resposta adicionada por ${userId} com ID: ${responseId} ao comentário: ${commentId}`);
         res.status(201).json({message: 'Resposta adicionada com sucesso', id: responseId});
 

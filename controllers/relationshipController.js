@@ -115,7 +115,7 @@ const generateTeacherCode = async (req, res) => {
     }
 };
 
-const getTeacherCodeHandler = async (req, res) => {
+const getTeacherCodeHandler = async (req, res) =>{
     logger.info('📋 [relationshipController] Buscando código do professor', 'RELATIONSHIPS');
     
     try {
